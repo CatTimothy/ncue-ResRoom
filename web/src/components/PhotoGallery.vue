@@ -1,0 +1,121 @@
+<script setup>
+import { computed, nextTick, ref, useTemplateRef } from 'vue';
+import { currentUser, deletePhoto } from '../api.js';
+import { canAnimate } from '../motion.js';
+import { confirmDelete } from '../page.js';
+import PhotoEditor from './PhotoEditor.vue';
+
+const props = defineProps({
+  photos: { type: Array, required: true },
+  albumId: { type: String, required: true },
+});
+
+const MORPH = 'photo-zoom';
+const grid = useTemplateRef('grid');
+const dialog = useTemplateRef('dialog');
+const image = useTemplateRef('image');
+const editor = useTemplateRef('editor');
+const index = ref(0);
+const current = computed(() => props.photos[index.value]);
+
+const thumbnail = () => grid.value?.querySelectorAll('img')[index.value];
+
+function setMorph(element, on) {
+  if (element) element.style.viewTransitionName = on ? MORPH : '';
+}
+
+function clearMorph() {
+  setMorph(thumbnail(), false);
+  setMorph(image.value, false);
+}
+
+/** 讓照片從原位置放大到燈箱；不支援或要求減少動態時直接切換 */
+async function transition(change) {
+  try {
+    if (canAnimate()) await document.startViewTransition(change).finished;
+    else await change();
+  } finally {
+    clearMorph();
+  }
+}
+
+function open(position) {
+  index.value = position;
+  setMorph(thumbnail(), true);
+  // 原生 dialog 會鎖定焦點，關閉時焦點回到原本的照片
+  return transition(async () => {
+    setMorph(thumbnail(), false);
+    dialog.value.showModal();
+    await nextTick();
+    setMorph(image.value, true);
+  });
+}
+
+function close() {
+  if (!dialog.value.open) return undefined;
+  setMorph(image.value, true);
+  return transition(async () => {
+    setMorph(image.value, false);
+    dialog.value.close();
+    setMorph(thumbnail(), true);
+    await nextTick();
+  });
+}
+
+function step(delta) {
+  index.value = (index.value + delta + props.photos.length) % props.photos.length;
+}
+
+function onKeydown(event) {
+  if (event.key === 'ArrowLeft') step(-1);
+  if (event.key === 'ArrowRight') step(1);
+}
+
+const remove = (photo) => confirmDelete(`確定要刪除照片「${photo.alt}」嗎？`, () => deletePhoto(photo.id));
+</script>
+
+<template>
+  <div v-if="currentUser" class="admin-bar">
+    <button type="button" class="button button--small" @click="editor.open()">新增照片</button>
+  </div>
+
+  <ul v-if="photos.length" ref="grid" class="photo-grid">
+    <li v-for="(photo, position) in photos" :key="photo.id">
+      <button type="button" class="photo-grid__open" :aria-label="`放大照片：${photo.alt}`" @click="open(position)">
+        <img :src="photo.url" :alt="photo.alt" loading="lazy" decoding="async" />
+      </button>
+      <div v-if="currentUser" class="photo-actions">
+        <button type="button" class="button button--small" :aria-label="`編輯照片：${photo.alt}`" @click="editor.open(photo)">編輯</button>
+        <button type="button" class="button button--small" :aria-label="`刪除照片：${photo.alt}`" @click="remove(photo)">刪除</button>
+      </div>
+    </li>
+  </ul>
+
+  <dialog
+    v-if="photos.length"
+    ref="dialog"
+    class="lightbox"
+    aria-label="檢視照片"
+    @keydown="onKeydown"
+    @cancel.prevent="close"
+    @click.self="close"
+  >
+    <template v-if="current">
+      <img ref="image" class="lightbox__image" :src="current.url" :alt="current.alt" />
+      <div class="lightbox__bar">
+        <p aria-live="polite">
+          {{ current.alt }}
+          <span class="lightbox__count">第 {{ index + 1 }} 張，共 {{ photos.length }} 張</span>
+        </p>
+        <div class="lightbox__actions">
+          <button type="button" class="button" :disabled="photos.length < 2" @click="step(-1)">上一張</button>
+          <button type="button" class="button" :disabled="photos.length < 2" @click="step(1)">下一張</button>
+          <a class="button" :href="current.originalUrl" download>下載原始檔</a>
+          <button type="button" class="button" @click="close">關閉</button>
+        </div>
+      </div>
+    </template>
+  </dialog>
+
+  <PhotoEditor v-if="currentUser" ref="editor" :album-id="albumId" />
+</template>
