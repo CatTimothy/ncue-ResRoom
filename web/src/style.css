@@ -1158,11 +1158,12 @@ h2 {
   cursor: zoom-in;
 }
 
+/* 版面維持整齊的格狀，但照片完整顯示不裁切 */
 .photo-grid img {
   width: 100%;
   aspect-ratio: 3 / 2;
   border-radius: inherit;
-  object-fit: cover;
+  object-fit: contain;
 }
 
 .photo-grid__open:hover {
@@ -1228,8 +1229,64 @@ h2 {
   margin-inline: auto;
 }
 
-.lightbox__bar p {
+.lightbox__caption {
+  flex: 1 1 16rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.lightbox__alt {
+  display: inline;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.lightbox__alt-icon {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  margin-inline-start: 0.25em;
+  vertical-align: -0.125em;
+  fill: none;
+  stroke: currentcolor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+}
+
+.lightbox__alt:hover {
+  color: var(--yellow);
+}
+
+.lightbox__alt-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.lightbox__alt-form input {
+  flex: 1 1 14rem;
+  min-width: 0;
+  min-height: 2.5rem;
+  padding: 0.25rem 0.75rem;
+  border: 2px solid var(--yellow);
+  border-radius: 0.5rem;
+  background: var(--white);
+  color: var(--ink);
+  font: inherit;
+}
+
+.lightbox__alt-error {
+  flex-basis: 100%;
   margin: 0;
+  color: var(--yellow);
 }
 
 .lightbox__count {
