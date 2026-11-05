@@ -393,6 +393,19 @@ h2 {
   overflow-y: visible;
 }
 
+/* 輸入區要撐滿高度，內容空白時整塊空白處才點得到。CodeMirror 用 !important 鎖住外層的 align-items，所以設在這裡 */
+.markdown-editor .md-editor .cm-scroller .cm-content[contenteditable='true'] {
+  align-self: stretch;
+  /* 套件用 margin 留白，那一圈點不到；改成 padding 就算在輸入區裡面 */
+  margin: 0;
+  padding: 10px;
+}
+
+/* 編輯器不會在內部捲動，捲軸用不到，留著只會擋住最右邊的點擊 */
+.markdown-editor .md-editor-custom-scrollbar__track {
+  display: none;
+}
+
 /* 內容變長後，捲到下面時工具列仍要按得到。
    下拉選單在工具列裡面，所以工具列不能裁切內容；窄螢幕改用換行，不用橫向捲動 */
 .markdown-editor .md-editor-toolbar-wrapper {
