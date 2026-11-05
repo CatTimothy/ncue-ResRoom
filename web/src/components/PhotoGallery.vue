@@ -7,7 +7,8 @@ import PhotoEditor from './PhotoEditor.vue';
 
 const props = defineProps({
   photos: { type: Array, required: true },
-  albumId: { type: String, required: true },
+  /** 相簿的照片才能在這裡管理；文章內文的照片沒有 albumId，只能檢視 */
+  albumId: { type: String, default: null },
 });
 
 const MORPH = 'photo-zoom';
@@ -17,6 +18,7 @@ const image = useTemplateRef('image');
 const editor = useTemplateRef('editor');
 const index = ref(0);
 const current = computed(() => props.photos[index.value]);
+const manageable = computed(() => Boolean(currentUser.value && props.albumId));
 
 const thumbnail = () => grid.value?.querySelectorAll('img')[index.value];
 
@@ -75,7 +77,7 @@ const remove = (photo) => confirmDelete(`確定要刪除照片「${photo.alt}」
 </script>
 
 <template>
-  <div v-if="currentUser" class="admin-bar">
+  <div v-if="manageable" class="admin-bar">
     <button type="button" class="button button--small" @click="editor.open()">新增照片</button>
   </div>
 
@@ -84,7 +86,7 @@ const remove = (photo) => confirmDelete(`確定要刪除照片「${photo.alt}」
       <button type="button" class="photo-grid__open" :aria-label="`放大照片：${photo.alt}`" @click="open(position)">
         <img :src="photo.url" :alt="photo.alt" loading="lazy" decoding="async" />
       </button>
-      <div v-if="currentUser" class="photo-actions">
+      <div v-if="manageable" class="photo-actions">
         <button type="button" class="button button--small" :aria-label="`編輯照片：${photo.alt}`" @click="editor.open(photo)">編輯</button>
         <button type="button" class="button button--small" :aria-label="`刪除照片：${photo.alt}`" @click="remove(photo)">刪除</button>
       </div>
@@ -110,12 +112,12 @@ const remove = (photo) => confirmDelete(`確定要刪除照片「${photo.alt}」
         <div class="lightbox__actions">
           <button type="button" class="button" :disabled="photos.length < 2" @click="step(-1)">上一張</button>
           <button type="button" class="button" :disabled="photos.length < 2" @click="step(1)">下一張</button>
-          <a class="button" :href="current.originalUrl" download>下載原始檔</a>
+          <a class="button" :href="current.originalUrl ?? current.url" download>{{ current.originalUrl ? '下載原始檔' : '下載照片' }}</a>
           <button type="button" class="button" @click="close">關閉</button>
         </div>
       </div>
     </template>
   </dialog>
 
-  <PhotoEditor v-if="currentUser" ref="editor" :album-id="albumId" />
+  <PhotoEditor v-if="manageable" ref="editor" :album-id="albumId" />
 </template>

@@ -839,6 +839,22 @@ h2 {
   border-radius: 0.75rem;
 }
 
+/* 內文的照片用相簿的樣式顯示 */
+.article__body .photo-grid {
+  margin-block: 1.5rem;
+}
+
+/* 只有一張時常是地圖或說明圖，不能裁切，要看得清楚 */
+.article__body .photo-grid:has(> li:only-child) {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.article__body .photo-grid:has(> li:only-child) img {
+  height: auto;
+  aspect-ratio: auto;
+  object-fit: contain;
+}
+
 .article__body :is(h1, h2, h3, h4) {
   margin: 1.75em 0 0.5em;
   font-family: var(--display);
