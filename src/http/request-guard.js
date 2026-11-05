@@ -1,7 +1,9 @@
+import { hasPermission } from '../lib/guards.js';
+import { UPLOAD_PERMISSIONS } from '../lib/permissions.js';
 import { respond } from './respond.js';
 
 // 欄位值的限制在 src/db/schema.sql；這裡是解析請求前就要擋下的上限。
-// 上傳檔案需要登入，且照片不限大小，所以只限制一般請求
+// 上傳檔案需要權限，且照片不限大小，所以只限制一般請求
 const MAX_JSON_BODY = 4 * 1024 * 1024;
 
 function isAllowedOrigin(origin, host, allowedOrigins) {
@@ -18,11 +20,15 @@ async function rejection(req, sessions, allowedOrigins) {
   // SameSite 擋不住同網域下其他子網域的請求，所以另外檢查來源
   if (!isAllowedOrigin(req.headers.origin, req.headers.host, allowedOrigins)) return [403, 'Forbidden origin'];
 
-  // 先檢查大小與登入狀態，避免未登入的請求佔用記憶體
+  // 先檢查大小與權限，避免不能上傳的請求佔用記憶體
   const isUpload = (req.headers['content-type'] ?? '').startsWith('multipart/');
   const length = Number(req.headers['content-length']);
   if (!Number.isFinite(length)) return [411, 'Length required'];
-  if (isUpload) return (await sessions.current(req.headers.cookie)).user ? null : [401, 'Unauthorized'];
+  if (isUpload) {
+    const context = await sessions.current(req.headers.cookie);
+    if (!context.user) return [401, 'Unauthorized'];
+    return UPLOAD_PERMISSIONS.some((permission) => hasPermission(context, permission)) ? null : [403, 'Forbidden'];
+  }
   if (length > MAX_JSON_BODY) return [413, 'Payload too large'];
   return null;
 }

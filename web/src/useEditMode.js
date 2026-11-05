@@ -1,17 +1,17 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { onBeforeRouteLeave, onBeforeRouteUpdate, useRoute, useRouter } from 'vue-router';
-import { currentUser } from './api.js';
+import { can } from './api.js';
 import { focusMain } from './page.js';
 
 /**
  * 文章的編輯模式記在網址上（?edit=1、?new=1），清單的按鈕才能直接帶到這裡。
- * 未登入時忽略，顯示一般內容；編輯到一半才過期或登出時留在編輯畫面，內容才不會消失。
+ * 沒有權限時忽略，顯示一般內容；編輯到一半才過期或登出時留在編輯畫面，內容才不會消失。
  */
-export function useEditMode(param = 'edit') {
+export function useEditMode(permission, param = 'edit') {
   const route = useRoute();
   const router = useRouter();
   const editing = ref(false);
-  const active = computed(() => param in route.query && (Boolean(currentUser.value) || editing.value));
+  const active = computed(() => param in route.query && (can(permission) || editing.value));
 
   // 原本的按鈕消失了，要把焦點移到內容開頭
   watch(active, async (value) => {

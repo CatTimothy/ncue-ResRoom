@@ -1,7 +1,7 @@
 <script setup>
 import { ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
-import { currentUser, deleteAnnouncement, fetchAnnouncement, recordAnnouncementView } from '../api.js';
+import { can, deleteAnnouncement, fetchAnnouncement, recordAnnouncementView } from '../api.js';
 import AnnouncementEditor from '../components/AnnouncementEditor.vue';
 import ArticleBody from '../components/ArticleBody.vue';
 import ItemStatus from '../components/ItemStatus.vue';
@@ -13,7 +13,7 @@ import { useEditMode } from '../useEditMode.js';
 const props = defineProps({ id: { type: String, required: true } });
 
 const router = useRouter();
-const { active: editing, close } = useEditMode();
+const { active: editing, close } = useEditMode('MANAGE_ANNOUNCEMENTS');
 
 const state = useCachedItem(
   () => `announcement:${props.id}`,
@@ -56,7 +56,7 @@ const remove = () => confirmDelete(
       </ItemStatus>
 
       <article v-if="status === 'ready'" class="article">
-        <div v-if="currentUser" class="admin-bar row-actions">
+        <div v-if="can('MANAGE_ANNOUNCEMENTS')" class="admin-bar row-actions">
           <RouterLink class="button button--small" :to="{ query: { edit: '1' } }">編輯公告</RouterLink>
           <button type="button" class="button button--small button--quiet" @click="remove">刪除公告</button>
         </div>

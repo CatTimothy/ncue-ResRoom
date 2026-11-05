@@ -1,6 +1,6 @@
 import { renderAnnouncement } from '../lib/content.js';
 import { fail } from '../lib/errors.js';
-import { withLogin } from '../lib/guards.js';
+import { hasPermission, withPermission } from '../lib/guards.js';
 import { paging, searchCondition, searchParams, visible } from '../lib/search.js';
 
 export const announcementsTypeDefs = /* GraphQL */ `
@@ -54,20 +54,20 @@ export const announcementsTypeDefs = /* GraphQL */ `
 export function createAnnouncementsResolvers({ db }) {
   return {
     Query: {
-      announcements: (_, { search, limit, offset }, { user }) => db.prepare(`
+      announcements: (_, { search, limit, offset }, context) => db.prepare(`
         SELECT * FROM announcements
         WHERE ${visible(1)} AND ${searchCondition('title')}
         ORDER BY published_at DESC, id DESC
         ${paging(6)}
-      `).all(Boolean(user), ...searchParams(search), limit, offset),
+      `).all(hasPermission(context, 'MANAGE_ANNOUNCEMENTS'), ...searchParams(search), limit, offset),
 
-      announcement: (_, { id }, { user }) => db
+      announcement: (_, { id }, context) => db
         .prepare(`SELECT * FROM announcements WHERE id = $1 AND ${visible(2)}`)
-        .get(id, Boolean(user)),
+        .get(id, hasPermission(context, 'MANAGE_ANNOUNCEMENTS')),
     },
 
     Mutation: {
-      ...withLogin({
+      ...withPermission('MANAGE_ANNOUNCEMENTS', {
         async saveAnnouncement(_, { id, title, content, publishedAt, ...info }) {
           const details = [info.unit ?? null, info.deadline ?? null, info.contactPerson ?? null, info.extension ?? null];
           if (id == null) {
@@ -94,9 +94,9 @@ export function createAnnouncementsResolvers({ db }) {
         },
       }),
 
-      // 管理員檢視或編輯時不計入，只回傳目前的人次
-      async recordAnnouncementView(_, { id }, { user }) {
-        const row = await (user
+      // 能管理公告的人檢視或編輯時不計入，只回傳目前的人次
+      async recordAnnouncementView(_, { id }, context) {
+        const row = await (hasPermission(context, 'MANAGE_ANNOUNCEMENTS')
           ? db.prepare('SELECT views FROM announcements WHERE id = $1').get(id)
           : db.prepare('UPDATE announcements SET views = views + 1 WHERE id = $1 AND published_at <= now() RETURNING views').get(id));
         return row?.views ?? null;

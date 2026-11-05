@@ -295,6 +295,48 @@ h2 {
   color: var(--ink);
 }
 
+.user-settings__head {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.user-settings__section {
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--line);
+}
+
+.permission-checks {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: 0.5rem 1rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.permission-checks legend {
+  margin-bottom: 0.5rem;
+  padding: 0;
+  font-weight: 700;
+}
+
+.permission-checks label {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  min-height: 2rem;
+  cursor: pointer;
+}
+
+.permission-checks input {
+  width: 1.25rem;
+  height: 1.25rem;
+  accent-color: var(--ink);
+}
+
 .editor::backdrop {
   background: rgb(20 27 92 / 0.7);
 }

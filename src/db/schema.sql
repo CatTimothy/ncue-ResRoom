@@ -14,6 +14,20 @@ CREATE TABLE IF NOT EXISTS users (
   CONSTRAINT users_username_check CHECK (username ~ '^[A-Za-z0-9._-]{3,50}$')
 );
 
+-- 權限清單，可用的值在 src/lib/permissions.js。升級舊帳號：原本就能做所有事，所以得到全部權限
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT FROM information_schema.columns
+    WHERE table_schema = current_schema() AND table_name = 'users' AND column_name = 'permissions'
+  ) THEN
+    ALTER TABLE users ADD COLUMN permissions TEXT[] NOT NULL DEFAULT '{}';
+    UPDATE users SET permissions = ARRAY[
+      'MANAGE_ANNOUNCEMENTS', 'MANAGE_ALBUMS', 'MANAGE_DOCUMENTS', 'MANAGE_PAGES', 'MANAGE_SITE_CONFIG', 'MANAGE_USERS'
+    ];
+  END IF;
+END $$;
+
 CREATE TABLE IF NOT EXISTS sessions (
   token_hash BYTEA PRIMARY KEY,
   username   TEXT NOT NULL REFERENCES users (username) ON DELETE CASCADE,

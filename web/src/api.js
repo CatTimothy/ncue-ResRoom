@@ -3,6 +3,8 @@ import { cache } from './cache.js';
 
 /** 目前登入的使用者；null 表示未登入 */
 export const currentUser = ref(null);
+/** 目前的使用者有沒有這項權限。只決定要不要顯示按鈕，實際的檢查在伺服器 */
+export const can = (permission) => Boolean(currentUser.value?.permissions?.includes(permission));
 /** 內容或登入狀態改變時遞增，畫面上的內容會跟著重新取得 */
 export const contentVersion = ref(0);
 /** 操作結果的提示文字 */
@@ -231,9 +233,11 @@ export const updateDocument = ({ id, title, category }) => mutate(
 export const deleteDocument = deleter('deleteDocument', '文件已刪除');
 
 // 登入
+const USER_FIELDS = 'username permissions';
+
 export async function loadCurrentUser() {
   try {
-    currentUser.value = await query('{ me { username } }');
+    currentUser.value = await query(`{ me { ${USER_FIELDS} } }`);
     if (currentUser.value) publish(); // 登入後才看得到未發布的內容
   } catch (error) {
     console.error(error);
@@ -243,12 +247,34 @@ export async function loadCurrentUser() {
 export async function login(username, password) {
   currentUser.value = await query(
     `mutation ($username: String!, $password: String!) {
-      login(username: $username, password: $password) { username }
+      login(username: $username, password: $password) { ${USER_FIELDS} }
     }`,
     { username, password },
   );
   publish('已登入');
 }
+
+// 帳號：不影響網站內容，所以不清除快取
+export const fetchUsers = () => query(`{ users { ${USER_FIELDS} } }`);
+
+export const changePassword = ({ currentPassword, newPassword }) => query(
+  'mutation ($currentPassword: String!, $newPassword: String!) { changePassword(currentPassword: $currentPassword, newPassword: $newPassword) }',
+  { currentPassword, newPassword },
+);
+
+export const createUser = ({ username, password, permissions }) => query(
+  `mutation ($username: String!, $password: String!, $permissions: [Permission!]!) {
+    createUser(username: $username, password: $password, permissions: $permissions) { ${USER_FIELDS} }
+  }`,
+  { username, password, permissions },
+);
+
+export const setUserPermissions = (username, permissions) => query(
+  `mutation ($username: String!, $permissions: [Permission!]!) {
+    setUserPermissions(username: $username, permissions: $permissions) { ${USER_FIELDS} }
+  }`,
+  { username, permissions },
+);
 
 export async function logout() {
   await query('mutation { logout }');

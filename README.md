@@ -67,15 +67,40 @@ API 不在 `http://localhost:4000` 時，啟動前請設定 `API_URL`。
 
 ## 登入
 
-查詢公開內容不需登入；所有編輯操作、使用者清單和頁面的 `source` 都需要登入。**沒有角色或權限之分，每位使用者都能編輯所有內容、新增或刪除其他使用者。**
+查詢公開內容不需登入；編輯操作、未發布的公告、沒有照片的相簿和頁面的 `source` 都需要對應的權限。每個帳號可以勾選多項權限：
+
+| 權限 | 可以做的事 |
+|---|---|
+| `MANAGE_ANNOUNCEMENTS` | 新增、編輯、刪除公告 |
+| `MANAGE_ALBUMS` | 管理相簿與照片 |
+| `MANAGE_DOCUMENTS` | 管理文件 |
+| `MANAGE_PAGES` | 管理頁面 |
+| `MANAGE_SITE_CONFIG` | 編輯頁尾 |
+| `MANAGE_USERS` | 查看帳號清單、新增帳號、變更其他帳號的權限 |
+
+內文圖片的上傳需要 `MANAGE_ANNOUNCEMENTS` 或 `MANAGE_PAGES`。沒有權限時，畫面上不會顯示對應的按鈕，伺服器也會拒絕操作（錯誤代碼 `FORBIDDEN`）。
+
+每個人都可以按頁首的「帳號設定」更改自己的密碼；有 `MANAGE_USERS` 的人還會在同一個視窗看到帳號管理。
+
+要新增權限時，依 `src/lib/permissions.js` 開頭的步驟修改。
 
 ```graphql
 mutation { login(username: "admin", password: "...") { username } }
-query { me { username } }
+query { me { username permissions } }
 mutation { logout }
+mutation { changePassword(currentPassword: "...", newPassword: "...") }
+
+# 需要 MANAGE_USERS
+query { users { username permissions } }
+mutation { createUser(username: "editor", password: "...", permissions: [MANAGE_ANNOUNCEMENTS, MANAGE_PAGES]) { username permissions } }
+mutation { setUserPermissions(username: "editor", permissions: [MANAGE_ALBUMS]) { username permissions } }
 ```
 
-帳號只能用 `npm run create-user -- <username>` 建立或重設密碼，沒有 API。
+第一位使用者要用 `npm run create-user -- <username>` 建立。忘記密碼時也用這個指令重設，既有帳號的權限不變；用指令新增的帳號有全部權限。
+
+- 更改密碼後，同一帳號的所有裝置都會被登出，只有目前的裝置會換一個新的登入狀態。
+- 權限變更會立即在伺服器生效，不需要重新登入；對方畫面上的按鈕要重新整理頁面才會更新。
+- 不能變更自己的權限，所以至少會留下一位可以管理帳號的人。
 
 - 登入狀態存在 7 天有效的 HttpOnly cookie，前端發送請求時要帶 `credentials: 'include'`。
 - 同一來源對同一帳號 15 分鐘內嘗試超過 10 次就會暫時鎖定。

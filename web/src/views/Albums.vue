@@ -1,7 +1,7 @@
 <script setup>
 import { computed, useTemplateRef } from 'vue';
 import { useRoute } from 'vue-router';
-import { currentUser, fetchAlbums } from '../api.js';
+import { can, fetchAlbums } from '../api.js';
 import AlbumEditor from '../components/AlbumEditor.vue';
 import AlbumSection from '../components/AlbumSection.vue';
 import ListStatus from '../components/ListStatus.vue';
@@ -25,7 +25,7 @@ const list = usePagedList(
     <h1 class="stop">活動剪影</h1>
     <div>
       <SearchBar label="搜尋相簿" placeholder="輸入相簿名稱或活動日期，例如 校外參訪、115/11" />
-      <div v-if="currentUser" class="admin-bar">
+      <div v-if="can('MANAGE_ALBUMS')" class="admin-bar">
         <button type="button" class="button button--small" @click="editor.open()">新增相簿</button>
       </div>
       <AlbumSection v-for="album in list.items.value" :key="album.id" :album="album" @edit="editor.open($event)" />
@@ -34,7 +34,7 @@ const list = usePagedList(
         :empty-text="search ? `找不到符合「${search}」的相簿。可以換個關鍵字或日期。` : '目前沒有相簿。'"
         what="相簿"
       />
-      <AlbumEditor v-if="currentUser" ref="editor" />
+      <AlbumEditor v-if="can('MANAGE_ALBUMS')" ref="editor" />
     </div>
   </div>
 </template>

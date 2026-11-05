@@ -1,6 +1,6 @@
 import { extname } from 'node:path';
 import { fail } from '../lib/errors.js';
-import { withLogin } from '../lib/guards.js';
+import { withPermission } from '../lib/guards.js';
 import { paging } from '../lib/search.js';
 
 export const documentsTypeDefs = /* GraphQL */ `
@@ -31,7 +31,7 @@ export function createDocumentsResolvers({ db, storage }) {
       documents: (_, { limit, offset }) => db.prepare(`SELECT * FROM documents ORDER BY id DESC ${paging(1)}`).all(limit, offset),
     },
 
-    Mutation: withLogin({
+    Mutation: withPermission('MANAGE_DOCUMENTS', {
       async uploadDocument(_, { file, title, category }) {
         const ext = extname(file.name).toLowerCase();
         const bytes = Buffer.from(await file.arrayBuffer());

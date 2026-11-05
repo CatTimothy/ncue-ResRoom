@@ -1,6 +1,6 @@
 <script setup>
 import { useRouter } from 'vue-router';
-import { currentUser, deletePage, fetchPage } from '../api.js';
+import { can, deletePage, fetchPage } from '../api.js';
 import ArticleBody from '../components/ArticleBody.vue';
 import ItemStatus from '../components/ItemStatus.vue';
 import PageEditor from '../components/PageEditor.vue';
@@ -14,7 +14,7 @@ const props = defineProps({
 });
 
 const router = useRouter();
-const { active: editing, close } = useEditMode();
+const { active: editing, close } = useEditMode('MANAGE_PAGES');
 
 const state = useCachedItem(
   () => `page:${props.slug}`,
@@ -44,7 +44,7 @@ const remove = () => confirmDelete(
     <template v-else>
       <div class="album-head">
         <h1 class="stop">{{ item?.title ?? (fallbackTitle || '找不到這個頁面') }}</h1>
-        <div v-if="currentUser && status !== 'loading'" class="row-actions">
+        <div v-if="can('MANAGE_PAGES') && status !== 'loading'" class="row-actions">
           <RouterLink class="button button--small" :to="{ query: { edit: '1' } }">
             {{ item ? '編輯頁面' : '建立頁面' }}
           </RouterLink>

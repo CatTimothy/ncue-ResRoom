@@ -12,7 +12,7 @@ import { usePagedList } from '../usePagedList.js';
 const route = useRoute();
 const router = useRouter();
 const search = computed(() => route.query.q || null);
-const { active: creating, close } = useEditMode('new');
+const { active: creating, close } = useEditMode('MANAGE_ANNOUNCEMENTS', 'new');
 
 const list = usePagedList(
   () => `announcements:${search.value ?? ''}`,

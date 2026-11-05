@@ -13,6 +13,8 @@ import { openDb } from '../src/db/index.js';
 import { seedContent } from '../src/db/seed.js';
 import { createStorage } from '../src/lib/storage.js';
 import { saveUser } from '../src/lib/password.js';
+import { ALL_PERMISSIONS } from '../src/lib/permissions.js';
+import { PERMISSIONS as WEB_PERMISSIONS } from '../web/src/permissions.js';
 
 const USER = { username: 'admin', password: 'admin-password-123' };
 const PASSWORD = 'other-password-1234';
@@ -185,12 +187,204 @@ test('every mutation except login, logout and the view counters requires a sessi
   assert.equal(multipart.status, 401);
 });
 
-test('users only expose a username', async () => {
+test('users never expose the password hash', async () => {
   assert.ok((await gql('{ me { passwordHash } }')).errors);
   const columns = await app.db.prepare(`
     SELECT column_name FROM information_schema.columns WHERE table_name = 'users' ORDER BY ordinal_position
   `).all();
-  assert.deepEqual(columns.map((c) => c.columnName), ['username', 'password_hash']);
+  assert.deepEqual(columns.map((c) => c.columnName), ['username', 'password_hash', 'permissions']);
+});
+
+const CREATE_USER = 'mutation ($u: String!, $p: String!, $r: [Permission!]!) { createUser(username: $u, password: $p, permissions: $r) { username permissions } }';
+const SET_PERMISSIONS = 'mutation ($u: String!, $r: [Permission!]!) { setUserPermissions(username: $u, permissions: $r) { username permissions } }';
+const CHANGE_PASSWORD = 'mutation ($c: String!, $n: String!) { changePassword(currentPassword: $c, newPassword: $n) }';
+
+async function loginWith(username, permissions) {
+  await saveUser(app.db, username, PASSWORD);
+  await gql(SET_PERMISSIONS, { u: username, r: permissions });
+  return (await login(username, PASSWORD)).headers;
+}
+
+test('the web app knows every permission', () => {
+  assert.deepEqual(Object.keys(WEB_PERMISSIONS), ALL_PERMISSIONS);
+});
+
+test('accounts with MANAGE_USERS can list and create users, without overwriting existing accounts', async () => {
+  const created = await gql(CREATE_USER, { u: 'new.editor', p: PASSWORD, r: ['MANAGE_PAGES', 'MANAGE_ALBUMS', 'MANAGE_PAGES'] });
+  assert.deepEqual(created.data.createUser, { username: 'new.editor', permissions: ['MANAGE_ALBUMS', 'MANAGE_PAGES'] });
+  assert.ok((await login('new.editor', PASSWORD)).user);
+  const { users } = (await gql('{ users { username permissions } }')).data;
+  assert.deepEqual(users.find((u) => u.username === 'new.editor').permissions, ['MANAGE_ALBUMS', 'MANAGE_PAGES']);
+  assert.deepEqual(users.find((u) => u.username === USER.username).permissions, ALL_PERMISSIONS);
+
+  const duplicate = await gql(CREATE_USER, { u: 'new.editor', p: 'another-password-123', r: ALL_PERMISSIONS });
+  assert.match(duplicate.errors[0].message, /已經存在/);
+  assert.ok((await login('new.editor', PASSWORD)).user, 'the original password still works');
+
+  assert.match((await gql(CREATE_USER, { u: 'x', p: PASSWORD, r: [] })).errors[0].message, /username/);
+  assert.match((await gql(CREATE_USER, { u: 'short.pw', p: 'short', r: [] })).errors[0].message, /12/);
+  assert.ok((await gql(CREATE_USER, { u: 'bad.perm', p: PASSWORD, r: ['NOT_A_PERMISSION'] })).errors);
+});
+
+test('each permission only allows its own operations', async () => {
+  const OPERATIONS = {
+    MANAGE_ANNOUNCEMENTS: ['mutation { saveAnnouncement(title: "t", content: "c") { id } }', 'mutation { deleteAnnouncement(id: "0") }'],
+    MANAGE_ALBUMS: ['mutation { saveAlbum(name: "相簿") { id } }', 'mutation { deleteAlbum(id: "0") }', 'mutation { deletePhoto(id: "0") }'],
+    MANAGE_DOCUMENTS: ['mutation { deleteDocument(id: "0") }'],
+    MANAGE_PAGES: ['mutation { savePage(slug: "perm-test", title: "t", format: MARKDOWN, content: "c") { slug } }', 'mutation { deletePage(slug: "perm-test") }'],
+    MANAGE_SITE_CONFIG: [],
+    MANAGE_USERS: ['{ users { username } }', 'mutation { createUser(username: "perm.test", password: "perm-password-123", permissions: []) { username } }', 'mutation { setUserPermissions(username: "nobody.here", permissions: []) { username } }'],
+  };
+  assert.deepEqual(Object.keys(OPERATIONS), ALL_PERMISSIONS);
+
+  const code = async (query, headers) => (await gql(query, {}, headers)).errors?.[0].extensions.code;
+  for (const permission of ALL_PERMISSIONS) {
+    const headers = await loginWith(`only.${permission.toLowerCase().replaceAll('_', '-')}`, [permission]);
+    for (const [owner, queries] of Object.entries(OPERATIONS)) {
+      for (const query of queries) {
+        const result = await code(query, headers);
+        if (owner === permission) assert.notEqual(result, 'FORBIDDEN', `${permission} should allow ${query}`);
+        else assert.equal(result, 'FORBIDDEN', `${permission} should not allow ${query}`);
+      }
+    }
+  }
+
+  const none = await loginWith('no.permissions', []);
+  assert.equal(await code('mutation { saveAlbum(name: "x") { id } }', none), 'FORBIDDEN');
+  assert.equal((await gql('{ me { permissions } }', {}, none)).data.me.permissions.length, 0);
+  assert.equal(await code('{ users { username } }', {}), 'UNAUTHENTICATED');
+  assert.equal(await code('mutation { saveAlbum(name: "x") { id } }', {}), 'UNAUTHENTICATED');
+
+  await app.db.prepare("DELETE FROM albums WHERE name = '相簿'").run();
+  await app.db.prepare("DELETE FROM announcements WHERE title = 't' AND content = 'c'").run();
+  await app.db.prepare("DELETE FROM users WHERE username = 'perm.test'").run();
+});
+
+test('content images need the announcement or page permission', async () => {
+  const QUERY = 'mutation ($file: File!) { uploadContentImage(file: $file) { url } }';
+  const upload_ = async (headers) => uploadJson(QUERY, {}, PNG, 'a.png', headers);
+  assert.ok((await upload_(await loginWith('images.announcements', ['MANAGE_ANNOUNCEMENTS']))).data);
+  assert.ok((await upload_(await loginWith('images.pages', ['MANAGE_PAGES']))).data);
+  assert.equal((await upload_(await loginWith('images.albums', ['MANAGE_ALBUMS']))).errors[0].extensions.code, 'FORBIDDEN');
+});
+
+test('accounts that cannot upload are refused before the body is read', async () => {
+  const QUERY = 'mutation ($file: File!) { uploadContentImage(file: $file) { url } }';
+  const refused = await upload(QUERY, {}, PNG, 'a.png', await loginWith('no.uploads', ['MANAGE_SITE_CONFIG', 'MANAGE_USERS']));
+  assert.equal(refused.status, 403);
+});
+
+test('announcement views are only skipped for people who can manage announcements', async () => {
+  const VIEW = 'mutation ($id: ID!) { recordAnnouncementView(id: $id) }';
+  const { id } = (await gql('mutation { saveAnnouncement(title: "人次", content: "c") { id } }')).data.saveAnnouncement;
+  const other = await loginWith('views.albums', ['MANAGE_ALBUMS']);
+  assert.equal((await gql(VIEW, { id }, other)).data.recordAnnouncementView, 1);
+  assert.equal((await gql(VIEW, { id })).data.recordAnnouncementView, 1);
+
+  const scheduled = (await gql('mutation { saveAnnouncement(title: "排程", content: "c", publishedAt: "2999-01-01T00:00:00Z") { id } }')).data.saveAnnouncement;
+  assert.equal((await gql(VIEW, { id: scheduled.id }, other)).data.recordAnnouncementView, null);
+
+  await gql('mutation ($id: ID!) { deleteAnnouncement(id: $id) }', { id });
+  await gql('mutation ($id: ID!) { deleteAnnouncement(id: $id) }', { id: scheduled.id });
+});
+
+test('permission changes apply to existing sessions, and nobody can change their own', async () => {
+  const headers = await loginWith('second.admin', ALL_PERMISSIONS);
+  assert.ok((await gql('{ users { username } }', {}, headers)).data.users);
+
+  const changed = await gql(SET_PERMISSIONS, { u: 'second.admin', r: ['MANAGE_PAGES'] });
+  assert.deepEqual(changed.data.setUserPermissions.permissions, ['MANAGE_PAGES']);
+  assert.equal((await gql('{ users { username } }', {}, headers)).errors[0].extensions.code, 'FORBIDDEN');
+
+  assert.match((await gql(SET_PERMISSIONS, { u: USER.username, r: [] })).errors[0].message, /自己/);
+  assert.match((await gql(SET_PERMISSIONS, { u: 'nobody.here', r: [] })).errors[0].message, /找不到/);
+});
+
+test('two people removing each other from user management at once leave one who can manage users', async () => {
+  await saveUser(app.db, 'race.one', PASSWORD);
+  await saveUser(app.db, 'race.two', PASSWORD);
+  const one = await login('race.one', PASSWORD);
+  const two = await login('race.two', PASSWORD);
+  await Promise.all([
+    gql(SET_PERMISSIONS, { u: 'race.two', r: [] }, one.headers),
+    gql(SET_PERMISSIONS, { u: 'race.one', r: [] }, two.headers),
+  ]);
+  const users = await app.db.prepare("SELECT permissions FROM users WHERE username LIKE 'race.%'").all();
+  assert.equal(users.filter((user) => user.permissions.includes('MANAGE_USERS')).length, 1);
+});
+
+test('accounts from before permissions keep full access', async () => {
+  const database = await createDatabase();
+  try {
+    await (await openDb(database.url)).close();
+    const client = new pg.Client({ connectionString: database.url });
+    await client.connect();
+    await client.query('ALTER TABLE users DROP COLUMN permissions');
+    await client.query("INSERT INTO users (username, password_hash) VALUES ('older', 'h')");
+    await client.end();
+
+    const db = await openDb(database.url);
+    assert.deepEqual((await db.prepare('SELECT permissions FROM users').get()).permissions, ALL_PERMISSIONS);
+    await db.close();
+  } finally {
+    await dropDatabase(database.name);
+  }
+});
+
+test('drafts, empty albums and page source need the matching permission, not just a login', async () => {
+  const draft = (await gql('mutation { saveAnnouncement(title: "未來的公告", content: "c", publishedAt: "2999-01-01T00:00:00Z") { id } }')).data.saveAnnouncement;
+  const album = await newAlbum('空相簿');
+  await gql(SAVE_PAGE, { slug: 'source-test', title: 't', format: 'MARKDOWN', content: '原文' });
+  const DRAFT = 'query ($id: ID!) { announcement(id: $id) { id } }';
+  const DRAFTS = '{ announcements(search: "未來的公告") { id } }';
+  const ALBUMS = '{ albums(search: "空相簿") { id } }';
+  const SOURCE = '{ page(slug: "source-test") { source } }';
+
+  const none = await loginWith('reads.none', ['MANAGE_DOCUMENTS']);
+  assert.equal((await gql(DRAFT, { id: draft.id }, none)).data.announcement, null);
+  assert.equal((await gql(DRAFTS, {}, none)).data.announcements.length, 0);
+  assert.equal((await gql(ALBUMS, {}, none)).data.albums.length, 0);
+  assert.equal((await gql(SOURCE, {}, none)).errors[0].extensions.code, 'FORBIDDEN');
+
+  assert.equal((await gql(DRAFT, { id: draft.id }, await loginWith('reads.news', ['MANAGE_ANNOUNCEMENTS']))).data.announcement.id, draft.id);
+  assert.equal((await gql(ALBUMS, {}, await loginWith('reads.albums', ['MANAGE_ALBUMS']))).data.albums.length, 1);
+  assert.equal((await gql(SOURCE, {}, await loginWith('reads.pages', ['MANAGE_PAGES']))).data.page.source, '原文');
+
+  await gql('mutation ($id: ID!) { deleteAnnouncement(id: $id) }', { id: draft.id });
+  await gql('mutation ($id: ID!) { deleteAlbum(id: $id) }', { id: album.id });
+  await gql('mutation { deletePage(slug: "source-test") }');
+});
+
+test('changing a password needs the current one and signs out other devices', async () => {
+  await saveUser(app.db, 'pw.changer', PASSWORD);
+  const here = await login('pw.changer', PASSWORD);
+  const elsewhere = await login('pw.changer', PASSWORD);
+  const NEW = 'brand-new-password-1';
+
+  assert.equal((await gql(CHANGE_PASSWORD, { c: PASSWORD, n: NEW }, {})).errors[0].extensions.code, 'UNAUTHENTICATED');
+  assert.match((await gql(CHANGE_PASSWORD, { c: 'wrong-password-000', n: NEW }, here.headers)).errors[0].message, /不正確/);
+  assert.match((await gql(CHANGE_PASSWORD, { c: PASSWORD, n: 'short' }, here.headers)).errors[0].message, /12/);
+  assert.ok((await login('pw.changer', PASSWORD)).user, 'rejected attempts keep the old password');
+
+  const changed = await post(app.base, CHANGE_PASSWORD, { c: PASSWORD, n: NEW }, here.headers);
+  assert.equal((await changed.json()).data.changePassword, true);
+  const renewed = { Cookie: changed.headers.get('set-cookie').split(';')[0] };
+  assert.notEqual(renewed.Cookie, here.headers.Cookie);
+  assert.equal((await gql('{ me { username } }', {}, renewed)).data.me.username, 'pw.changer');
+  assert.equal((await gql('{ me { username } }', {}, here.headers)).data.me, null, 'the old token no longer works');
+  assert.equal((await gql('{ me { username } }', {}, elsewhere.headers)).data.me, null);
+  assert.equal((await login('pw.changer', PASSWORD)).user, undefined);
+  assert.ok((await login('pw.changer', NEW)).user);
+});
+
+test('guessing the current password is rate limited', async () => {
+  await saveUser(app.db, 'pw.guesser', PASSWORD);
+  const { headers } = await login('pw.guesser', PASSWORD);
+  const NEW = 'brand-new-password-1';
+  for (let i = 0; i < 10; i += 1) {
+    assert.match((await gql(CHANGE_PASSWORD, { c: 'wrong-password-000', n: NEW }, headers)).errors[0].message, /不正確/);
+  }
+  assert.equal((await gql(CHANGE_PASSWORD, { c: PASSWORD, n: NEW }, headers)).errors[0].extensions.code, 'TOO_MANY_REQUESTS');
 });
 
 test('announcements have the expected columns', async () => {

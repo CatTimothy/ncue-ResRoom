@@ -1,5 +1,5 @@
 import { fail } from '../lib/errors.js';
-import { withLogin } from '../lib/guards.js';
+import { hasPermission, withPermission } from '../lib/guards.js';
 import { paging, searchCondition, searchParams, TAIPEI_TODAY } from '../lib/search.js';
 
 export const albumsTypeDefs = /* GraphQL */ `
@@ -40,18 +40,18 @@ export function createAlbumsResolvers({ db, storage }) {
 
   return {
     Query: {
-      albums: (_, { search, limit, offset }, { user }) => db.prepare(`
+      albums: (_, { search, limit, offset }, context) => db.prepare(`
         SELECT ${ALBUM_FIELDS} FROM albums a
         WHERE ($1::boolean OR EXISTS (SELECT 1 FROM photos p WHERE p.album_id = a.id))
           AND ${searchCondition('name', 'a.event_date')}
         ORDER BY event_date DESC, id DESC
         ${paging(6)}
-      `).all(Boolean(user), ...searchParams(search), limit, offset),
+      `).all(hasPermission(context, 'MANAGE_ALBUMS'), ...searchParams(search), limit, offset),
 
       album: (_, { id }) => withCount(id),
     },
 
-    Mutation: withLogin({
+    Mutation: withPermission('MANAGE_ALBUMS', {
       async saveAlbum(_, { id, name, eventDate }) {
         if (id == null) {
           const created = await db.prepare(`

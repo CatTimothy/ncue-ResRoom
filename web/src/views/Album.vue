@@ -1,7 +1,7 @@
 <script setup>
 import { useTemplateRef } from 'vue';
 import { useRouter } from 'vue-router';
-import { currentUser, deleteAlbum, fetchAlbum } from '../api.js';
+import { can, deleteAlbum, fetchAlbum } from '../api.js';
 import AlbumEditor from '../components/AlbumEditor.vue';
 import AlbumHeader from '../components/AlbumHeader.vue';
 import AlbumPhotos from '../components/AlbumPhotos.vue';
@@ -45,7 +45,7 @@ const remove = () => confirmDelete(
       <div>
         <AlbumPhotos :album-id="id" />
       </div>
-      <AlbumEditor v-if="currentUser" ref="editor" />
+      <AlbumEditor v-if="can('MANAGE_ALBUMS')" ref="editor" />
     </template>
   </div>
 </template>

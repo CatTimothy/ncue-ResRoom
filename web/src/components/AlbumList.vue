@@ -1,6 +1,6 @@
 <script setup>
 import { useTemplateRef } from 'vue';
-import { currentUser, deleteAlbum } from '../api.js';
+import { can, deleteAlbum } from '../api.js';
 import { albumDeleteQuestion, parseAlbum, rocDateText } from '../format.js';
 import { confirmDelete } from '../page.js';
 import AlbumEditor from './AlbumEditor.vue';
@@ -13,7 +13,7 @@ const remove = (album) => confirmDelete(albumDeleteQuestion(album), () => delete
 </script>
 
 <template>
-  <div v-if="currentUser" class="admin-bar">
+  <div v-if="can('MANAGE_ALBUMS')" class="admin-bar">
     <button type="button" class="button button--small" @click="editor.open()">新增相簿</button>
   </div>
 
@@ -28,12 +28,12 @@ const remove = (album) => confirmDelete(albumDeleteQuestion(album), () => delete
       <p class="album-card__meta">
         <time :datetime="album.eventDate">{{ rocDateText(album.eventDate) }}</time>，{{ album.photoCount }} 張
       </p>
-      <div v-if="currentUser" class="photo-actions">
+      <div v-if="can('MANAGE_ALBUMS')" class="photo-actions">
         <button type="button" class="button button--small" :aria-label="`編輯相簿：${album.name}`" @click="editor.open(album)">編輯</button>
         <button type="button" class="button button--small" :aria-label="`刪除相簿：${album.name}`" @click="remove(album)">刪除</button>
       </div>
     </li>
   </ul>
 
-  <AlbumEditor v-if="currentUser" ref="editor" />
+  <AlbumEditor v-if="can('MANAGE_ALBUMS')" ref="editor" />
 </template>

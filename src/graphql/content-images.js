@@ -1,4 +1,4 @@
-import { withLogin } from '../lib/guards.js';
+import { withPermission } from '../lib/guards.js';
 
 export const contentImagesTypeDefs = /* GraphQL */ `
   type ContentImage {
@@ -16,7 +16,7 @@ export const contentImagesTypeDefs = /* GraphQL */ `
 
 export function createContentImagesResolvers({ storage }) {
   return {
-    Mutation: withLogin({
+    Mutation: withPermission(['MANAGE_ANNOUNCEMENTS', 'MANAGE_PAGES'], {
       uploadContentImage: (_, { file }) => storage.saveContentImage(file),
     }),
   };

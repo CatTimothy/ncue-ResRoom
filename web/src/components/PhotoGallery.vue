@@ -1,6 +1,6 @@
 <script setup>
 import { computed, nextTick, ref, useTemplateRef } from 'vue';
-import { currentUser, deletePhoto } from '../api.js';
+import { can, deletePhoto } from '../api.js';
 import { canAnimate } from '../motion.js';
 import { confirmDelete } from '../page.js';
 import PhotoEditor from './PhotoEditor.vue';
@@ -18,7 +18,7 @@ const image = useTemplateRef('image');
 const editor = useTemplateRef('editor');
 const index = ref(0);
 const current = computed(() => props.photos[index.value]);
-const manageable = computed(() => Boolean(currentUser.value && props.albumId));
+const manageable = computed(() => Boolean(can('MANAGE_ALBUMS') && props.albumId));
 
 const thumbnail = () => grid.value?.querySelectorAll('img')[index.value];
 

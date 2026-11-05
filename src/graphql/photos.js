@@ -1,5 +1,5 @@
 import { fail } from '../lib/errors.js';
-import { withLogin } from '../lib/guards.js';
+import { withPermission } from '../lib/guards.js';
 import { paging } from '../lib/search.js';
 
 export const photosTypeDefs = /* GraphQL */ `
@@ -34,7 +34,7 @@ export function createPhotosResolvers({ db, storage }) {
       `).all(albumId, limit, offset),
     },
 
-    Mutation: withLogin({
+    Mutation: withPermission('MANAGE_ALBUMS', {
       uploadPhoto: (_, { file, alt, albumId }) => storage.saveImage(file, (storedName, filename) => db.prepare(`
         INSERT INTO photos (stored_name, alt, album_id, filename) VALUES ($1, btrim($2), $3, $4) RETURNING *
       `).get(storedName, alt, albumId, filename)),

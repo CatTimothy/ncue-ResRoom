@@ -1,6 +1,6 @@
 <script setup>
 import { computed } from 'vue';
-import { currentUser } from '../api.js';
+import { can } from '../api.js';
 import { parseAlbum, rocDateText, rocShortDate, wasEdited } from '../format.js';
 
 const props = defineProps({
@@ -29,7 +29,7 @@ const title = computed(() => parseAlbum(props.album.name));
       </p>
       <small v-if="wasEdited(album)" class="edited edited--short">(編輯於 {{ rocShortDate(album.modifiedAt) }})</small>
     </div>
-    <div v-if="currentUser" class="row-actions">
+    <div v-if="can('MANAGE_ALBUMS')" class="row-actions">
       <button type="button" class="button button--small button--quiet" :aria-label="`編輯相簿：${album.name}`" @click="$emit('edit')">編輯相簿</button>
       <button type="button" class="button button--small button--quiet" :aria-label="`刪除相簿：${album.name}`" @click="$emit('remove')">刪除相簿</button>
     </div>

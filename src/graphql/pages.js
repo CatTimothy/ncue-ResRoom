@@ -1,14 +1,14 @@
 import { extname } from 'node:path';
 import { renderPage } from '../lib/content.js';
 import { fail } from '../lib/errors.js';
-import { requireUser, withLogin } from '../lib/guards.js';
+import { requirePermission, withPermission } from '../lib/guards.js';
 
 export const pagesTypeDefs = /* GraphQL */ `
   type Page {
     slug: String!
     title: String!
     format: ContentFormat!
-    "未消毒的原始內容，僅限登入後編輯使用；顯示時請用 html"
+    "未消毒的原始內容，需要 MANAGE_PAGES；顯示時請用 html"
     source: String!
     "已轉換並消毒，可直接顯示"
     html: String!
@@ -47,7 +47,7 @@ export function createPagesResolvers({ db }) {
       page: (_, { slug }) => db.prepare('SELECT * FROM pages WHERE slug = $1').get(slug),
     },
 
-    Mutation: withLogin({
+    Mutation: withPermission('MANAGE_PAGES', {
       async savePage(_, { slug, title, ...input }) {
         const { format, source } = await pageSource(input);
         return db.prepare(`
@@ -68,7 +68,7 @@ export function createPagesResolvers({ db }) {
     Page: {
       html: renderPage,
       source(page, _args, context) {
-        requireUser(context);
+        requirePermission(context, 'MANAGE_PAGES');
         return page.source;
       },
     },

@@ -1,12 +1,14 @@
 <script setup>
-import { computed } from 'vue';
+import { computed, useTemplateRef } from 'vue';
 import { useRoute } from 'vue-router';
 import { currentUser, fetchPages, logout, notice } from './api.js';
+import UserSettings from './components/UserSettings.vue';
 import { BUILT_IN_PAGES } from './router.js';
 import { useCachedItem } from './useCachedItem.js';
 import { useTodayVisits } from './useTodayVisits.js';
 
 const route = useRoute();
+const settings = useTemplateRef('settings');
 const visitors = useTodayVisits();
 const year = new Date().getFullYear();
 
@@ -41,6 +43,7 @@ async function signOut() {
         <template v-if="currentUser">
           <RouterLink to="/pages" active-class="is-current">所有頁面</RouterLink>
           <span class="admin-status">{{ currentUser.username }} 已登入</span>
+          <button type="button" class="button button--small button--quiet" @click="settings.open()">帳號設定</button>
           <button type="button" class="button button--small button--quiet" @click="signOut">登出</button>
         </template>
         <RouterLink
@@ -89,6 +92,7 @@ async function signOut() {
       <small v-if="visitors !== null">今日訪問人數：{{ visitors }}</small>
     </div>
   </footer>
+  <UserSettings v-if="currentUser" ref="settings" />
 
   <p class="toast" :class="{ 'is-visible': notice }" role="status">{{ notice }}</p>
 </template>

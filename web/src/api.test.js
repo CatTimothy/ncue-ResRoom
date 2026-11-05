@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { afterEach, test } from 'node:test';
-import { contentVersion, currentUser, notice, uploadPhotos } from './api.js';
+import { can, contentVersion, currentUser, notice, uploadPhotos } from './api.js';
+import { permissionsText } from './permissions.js';
 
 const realFetch = globalThis.fetch;
 const realTimeout = globalThis.setTimeout;
@@ -97,4 +98,19 @@ test('登入過期時停止上傳、回到未登入狀態，已傳成功的照�
   assert.equal(count, 2);
   assert.equal(currentUser.value, null);
   assert.ok(contentVersion.value > version);
+});
+
+test('依目前使用者的權限判斷能不能操作', () => {
+  currentUser.value = null;
+  assert.equal(can('MANAGE_PAGES'), false);
+  currentUser.value = { username: 'a', permissions: ['MANAGE_PAGES'] };
+  assert.equal(can('MANAGE_PAGES'), true);
+  assert.equal(can('MANAGE_USERS'), false);
+  currentUser.value = null;
+});
+
+test('權限名稱依固定順序列出', () => {
+  assert.equal(permissionsText([]), '沒有權限');
+  assert.equal(permissionsText(['MANAGE_USERS', 'MANAGE_ANNOUNCEMENTS']), '公告、帳號管理');
+  assert.equal(permissionsText(['MANAGE_ANNOUNCEMENTS', 'MANAGE_ALBUMS', 'MANAGE_DOCUMENTS', 'MANAGE_PAGES', 'MANAGE_SITE_CONFIG', 'MANAGE_USERS']), '全部權限');
 });
