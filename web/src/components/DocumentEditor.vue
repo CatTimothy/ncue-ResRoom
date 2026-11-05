@@ -1,7 +1,7 @@
 <script setup>
 import { computed, ref } from 'vue';
 import { updateDocument, uploadDocument } from '../api.js';
-import { fileBaseName } from '../format.js';
+import { DOCUMENT_ACCEPT, fileBaseName } from '../format.js';
 import { useEditor } from '../useEditor.js';
 import EditorDialog from './EditorDialog.vue';
 
@@ -45,7 +45,7 @@ defineExpose({ open });
   >
     <label v-if="!id" class="field">
       <span>文件檔案</span>
-      <input :key="fileInputKey" type="file" required accept=".pdf,.doc,.docx,.odt,.xls,.xlsx,.ods,.ppt,.pptx,.odp,.txt" @change="onFile" />
+      <input :key="fileInputKey" type="file" required :accept="DOCUMENT_ACCEPT" @change="onFile" />
       <small>PDF、Word、Excel、PowerPoint、OpenDocument 或純文字檔，不超過 20 MB。</small>
     </label>
     <label class="field">

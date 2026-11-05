@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { afterEach, test } from 'node:test';
-import { can, contentVersion, currentUser, notice, uploadPhotos } from './api.js';
+import { can, contentVersion, currentUser, notice, uploadDocuments, uploadPhotos } from './api.js';
 import { permissionsText } from './permissions.js';
 
 const realFetch = globalThis.fetch;
@@ -113,4 +113,24 @@ test('權限名稱依固定順序列出', () => {
   assert.equal(permissionsText([]), '沒有權限');
   assert.equal(permissionsText(['MANAGE_USERS', 'MANAGE_ANNOUNCEMENTS']), '公告、帳號管理');
   assert.equal(permissionsText(['MANAGE_ANNOUNCEMENTS', 'MANAGE_ALBUMS', 'MANAGE_DOCUMENTS', 'MANAGE_PAGES', 'MANAGE_SITE_CONFIG', 'MANAGE_USERS']), '全部權限');
+});
+
+test('一次上傳多份文件，一份失敗不影響其他份，完成後只更新一次畫面', async () => {
+  let count = 0;
+  mockUpload(() => (++count === 2 ? { errors: [{ message: '不支援此文件格式' }] } : { data: { uploadDocument: { id: count } } }));
+  const version = contentVersion.value;
+  const results = await uploadDocuments([1, 2, 3].map((n) => ({ file: new File(['x'], `${n}.pdf`), title: String(n), category: null })));
+  assert.deepEqual(results.map((result) => result.status), ['fulfilled', 'rejected', 'fulfilled']);
+  assert.equal(contentVersion.value, version + 1);
+});
+
+test('上傳文件時登入過期就停止，只回報一次', async () => {
+  currentUser.value = { username: 'a', permissions: [] };
+  let count = 0;
+  mockUpload(() => (++count === 1 ? { status: 401 } : { data: { uploadDocument: { id: count } } }));
+  const results = await uploadDocuments([1, 2, 3].map((n) => ({ file: new File(['x'], `${n}.pdf`), title: String(n), category: null })));
+  assert.equal(count, 1);
+  assert.deepEqual(results.map((result) => result.status), ['rejected']);
+  assert.match(results[0].reason.message, /登入已過期/);
+  assert.equal(currentUser.value, null);
 });

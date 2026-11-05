@@ -65,6 +65,12 @@ export function rocShortDate(iso) {
 /** 台灣時區的今天，例如「2026-11-04」 */
 export const taipeiDay = (time = Date.now()) => dayFormat.format(time);
 
+/** 文件上傳接受的副檔名，要和伺服器的限制一致 */
+export const DOCUMENT_ACCEPT = '.pdf,.doc,.docx,.odt,.xls,.xlsx,.ods,.ppt,.pptx,.odp,.txt';
+
+/** Markdown 連結；文字裡的方括號要跳脫，檔名有方括號時連結才不會壞掉 */
+export const markdownLink = (text, url) => `[${text.replace(/[\\[\]]/g, '\\$&')}](${url})`;
+
 /** 去掉副檔名的檔名，當作照片說明的預設值 */
 export const fileBaseName = (name) => name.replace(/\.[^.]+$/, '') || name;
 

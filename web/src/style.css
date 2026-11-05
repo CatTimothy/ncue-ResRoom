@@ -407,7 +407,11 @@ h2 {
   flex-wrap: wrap;
 }
 
-.markdown-editor__add-image {
+.markdown-editor .cm-dropCursor {
+  border-left: 2px solid var(--ink);
+}
+
+.markdown-editor__tool {
   padding-inline: 0.25rem;
   font-size: 0.9375rem;
   white-space: nowrap;

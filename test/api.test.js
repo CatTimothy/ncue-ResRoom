@@ -227,6 +227,34 @@ test('accounts with MANAGE_USERS can list and create users, without overwriting 
   assert.ok((await gql(CREATE_USER, { u: 'bad.perm', p: PASSWORD, r: ['NOT_A_PERMISSION'] })).errors);
 });
 
+test('document links inserted by the Markdown editor work in pages and announcements', async () => {
+  const uploaded = await uploadJson(
+    'mutation ($file: File!, $title: String!) { uploadDocument(file: $file, title: $title) { id title url } }',
+    { title: '[115] 報名表' },
+    'hello',
+    'form.pdf',
+  );
+  const { id, url } = uploaded.data.uploadDocument;
+  const markdown = String.raw`[\[115\] 報名表](${url})`;
+  const link = `<a href="${url}">[115] 報名表</a>`;
+
+  const page = await gql(SAVE_PAGE, { slug: 'with-document', title: 't', format: 'MARKDOWN', content: markdown });
+  assert.ok(page.data.savePage.html.includes(link));
+  const announcement = await gql(
+    'mutation ($c: String!) { saveAnnouncement(title: "有文件", content: $c) { id html } }',
+    { c: markdown },
+  );
+  assert.ok(announcement.data.saveAnnouncement.html.includes(link));
+
+  const download = await fetch(`${app.base}${url}`);
+  assert.equal(download.status, 200);
+  assert.equal(await download.text(), 'hello');
+
+  await gql('mutation { deletePage(slug: "with-document") }');
+  await gql('mutation ($id: ID!) { deleteAnnouncement(id: $id) }', { id: announcement.data.saveAnnouncement.id });
+  await gql('mutation ($id: ID!) { deleteDocument(id: $id) }', { id });
+});
+
 test('each permission only allows its own operations', async () => {
   const OPERATIONS = {
     MANAGE_ANNOUNCEMENTS: ['mutation { saveAnnouncement(title: "t", content: "c") { id } }', 'mutation { deleteAnnouncement(id: "0") }'],

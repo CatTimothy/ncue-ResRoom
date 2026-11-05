@@ -228,14 +228,31 @@ export const fetchDocuments = (limit, offset = 0) => query(
   { limit, offset },
 );
 
-export const uploadDocument = ({ file, title, category }) => changed(
-  sendFile(
-    'mutation ($file: File!, $title: String!, $category: String) { uploadDocument(file: $file, title: $title, category: $category) { id } }',
-    { title, category },
-    file,
-  ),
-  '文件已上傳',
+const sendDocument = ({ file, title, category }) => sendFile(
+  'mutation ($file: File!, $title: String!, $category: String) { uploadDocument(file: $file, title: $title, category: $category) { id title url } }',
+  { title, category },
+  file,
 );
+
+export const uploadDocument = (document) => changed(sendDocument(document), '文件已上傳');
+
+/**
+ * 依序上傳多份，一份失敗不影響其他份；回傳每份的結果（同 Promise.allSettled）。
+ * 登入過期時後面的就不用試了。全部完成後只更新一次畫面。
+ */
+export async function uploadDocuments(documents) {
+  const results = [];
+  for (const document of documents) {
+    try {
+      results.push({ status: 'fulfilled', value: await sendDocument(document) });
+    } catch (reason) {
+      results.push({ status: 'rejected', reason });
+      if (reason.expired) return results;
+    }
+  }
+  if (results.some((result) => result.status === 'fulfilled')) publish('文件已上傳');
+  return results;
+}
 
 export const updateDocument = ({ id, title, category }) => mutate(
   'mutation ($id: ID!, $title: String!, $category: String) { updateDocument(id: $id, title: $title, category: $category) { id } }',
