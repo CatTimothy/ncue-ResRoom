@@ -1,15 +1,14 @@
 <script setup>
-import { computed, useTemplateRef } from 'vue';
+import { useTemplateRef } from 'vue';
 import { useRouter } from 'vue-router';
-import { currentUser, deleteAlbum, fetchAlbum, fetchPhotos } from '../api.js';
+import { currentUser, deleteAlbum, fetchAlbum } from '../api.js';
 import AlbumEditor from '../components/AlbumEditor.vue';
+import AlbumHeader from '../components/AlbumHeader.vue';
+import AlbumPhotos from '../components/AlbumPhotos.vue';
 import ItemStatus from '../components/ItemStatus.vue';
-import ListStatus from '../components/ListStatus.vue';
-import PhotoGallery from '../components/PhotoGallery.vue';
-import { albumDeleteQuestion, isScheduled, parseAlbum, rocDateText, wasEdited } from '../format.js';
+import { albumDeleteQuestion } from '../format.js';
 import { confirmDelete } from '../page.js';
 import { useCachedItem } from '../useCachedItem.js';
-import { usePagedList } from '../usePagedList.js';
 
 const props = defineProps({ id: { type: String, required: true } });
 
@@ -22,12 +21,6 @@ const state = useCachedItem(
   (row) => row.name,
 );
 const { item: album, status } = state;
-const photos = usePagedList(
-  () => `album:${props.id}:photos`,
-  (limit, offset) => fetchPhotos(props.id, limit, offset),
-  48,
-);
-const title = computed(() => (album.value ? parseAlbum(album.value.name) : null));
 
 const remove = () => confirmDelete(
   albumDeleteQuestion(album.value),
@@ -48,25 +41,9 @@ const remove = () => confirmDelete(
     </ItemStatus>
 
     <template v-if="status === 'ready'">
-      <header class="album-head">
-        <div>
-          <p v-if="title.term" class="term">{{ title.term }}</p>
-          <h1 class="stop">{{ title.name }}</h1>
-          <p class="article__date">
-            <time :datetime="album.publishedAt">{{ rocDateText(album.publishedAt) }}</time>，{{ album.photoCount }} 張
-            <span v-if="isScheduled(album)" class="tag">尚未發布</span>
-          </p>
-          <small v-if="wasEdited(album)" class="edited">編輯於 {{ rocDateText(album.modifiedAt) }}</small>
-        </div>
-        <div v-if="currentUser" class="row-actions">
-          <button type="button" class="button button--small button--quiet" @click="editor.open(album)">編輯相簿</button>
-          <button type="button" class="button button--small button--quiet" @click="remove">刪除相簿</button>
-        </div>
-      </header>
-
+      <AlbumHeader :album="album" @edit="editor.open(album)" @remove="remove" />
       <div>
-        <PhotoGallery :photos="photos.items.value" :album-id="id" />
-        <ListStatus :list="photos" empty-text="這本相簿還沒有照片。" what="照片" />
+        <AlbumPhotos :album-id="id" />
       </div>
       <AlbumEditor v-if="currentUser" ref="editor" />
     </template>

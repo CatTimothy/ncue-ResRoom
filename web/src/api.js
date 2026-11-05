@@ -124,16 +124,16 @@ export const uploadContentImage = (file) => sendFile(
 );
 
 // 相簿
-const ALBUM_FIELDS = 'id name createdAt modifiedAt publishedAt photoCount coverUrl';
+const ALBUM_FIELDS = 'id name createdAt modifiedAt eventDate photoCount coverUrl';
 
 export const fetchAlbums = searchList('albums', ALBUM_FIELDS);
 export const fetchAlbum = (id) => query(`query ($id: ID!) { album(id: $id) { ${ALBUM_FIELDS} } }`, { id });
 
-export const saveAlbum = ({ id = null, name, publishedAt }) => mutate(
-  `mutation ($id: ID, $name: String!, $publishedAt: String) {
-    saveAlbum(id: $id, name: $name, publishedAt: $publishedAt) { id }
+export const saveAlbum = ({ id = null, name, eventDate }) => mutate(
+  `mutation ($id: ID, $name: String!, $eventDate: String) {
+    saveAlbum(id: $id, name: $name, eventDate: $eventDate) { id }
   }`,
-  { id, name, publishedAt },
+  { id, name, eventDate },
   id ? '相簿已儲存' : '相簿已新增',
 );
 

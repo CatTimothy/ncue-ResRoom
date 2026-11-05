@@ -948,6 +948,27 @@ h2 {
   justify-content: space-between;
 }
 
+.album-section + .album-section {
+  margin-top: 3.5rem;
+}
+
+/* 照片載入前先佔位，頁面才不會一直跳動 */
+.album-section__photos:empty {
+  min-height: 12rem;
+}
+
+.album-section .album-head {
+  margin-bottom: 1.25rem;
+}
+
+.album-section h2 {
+  font-size: clamp(1.5rem, 1.25rem + 1vw, 2rem);
+}
+
+.album-section h2 a {
+  color: inherit;
+}
+
 .album-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(min(17rem, 100%), 1fr));

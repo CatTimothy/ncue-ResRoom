@@ -52,3 +52,6 @@ export function createCache(getStorage, now = Date.now) {
 }
 
 export const cache = createCache(() => globalThis.sessionStorage);
+
+/** 同一本相簿的照片清單，相簿清單與單本相簿頁共用 */
+export const albumPhotosKey = (id) => `album:${id}:photos`;

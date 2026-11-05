@@ -92,9 +92,25 @@ CREATE TABLE IF NOT EXISTS albums (
   name         TEXT NOT NULL,
   created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
   modified_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
-  published_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  event_date   DATE NOT NULL DEFAULT (now() AT TIME ZONE 'Asia/Taipei')::date,
   CONSTRAINT albums_name_check CHECK (name ~ '\S' AND char_length(name) <= 100)
 );
+
+-- 升級舊版 albums：發布時間改成活動日期，舊資料沿用發布當天（台灣時區）
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT FROM information_schema.columns
+    WHERE table_schema = current_schema() AND table_name = 'albums' AND column_name = 'published_at'
+  ) THEN
+    ALTER TABLE albums ADD COLUMN IF NOT EXISTS event_date DATE;
+    UPDATE albums SET event_date = (published_at AT TIME ZONE 'Asia/Taipei')::date;
+    ALTER TABLE albums
+      ALTER COLUMN event_date SET NOT NULL,
+      ALTER COLUMN event_date SET DEFAULT (now() AT TIME ZONE 'Asia/Taipei')::date,
+      DROP COLUMN published_at;
+  END IF;
+END $$;
 
 CREATE TABLE IF NOT EXISTS photos (
   id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -116,8 +132,8 @@ BEGIN
     WHERE table_schema = current_schema() AND table_name = 'photos' AND column_name = 'album'
   ) THEN
     ALTER TABLE photos ADD COLUMN album_id BIGINT REFERENCES albums (id) ON DELETE CASCADE;
-    INSERT INTO albums (name, created_at, modified_at, published_at)
-      SELECT COALESCE(NULLIF(btrim(album), ''), '未分類'), min(created_at), min(created_at), min(created_at)
+    INSERT INTO albums (name, created_at, modified_at, event_date)
+      SELECT COALESCE(NULLIF(btrim(album), ''), '未分類'), min(created_at), min(created_at), (min(created_at) AT TIME ZONE 'Asia/Taipei')::date
       FROM photos GROUP BY 1;
     UPDATE photos p SET album_id = a.id FROM albums a
       WHERE a.name = COALESCE(NULLIF(btrim(p.album), ''), '未分類');
@@ -129,7 +145,7 @@ END $$;
 DROP INDEX IF EXISTS photos_album_id_idx;
 CREATE INDEX IF NOT EXISTS photos_album_id_id_idx ON photos (album_id, id DESC);
 CREATE INDEX IF NOT EXISTS announcements_published_at_idx ON announcements (published_at DESC, id DESC);
-CREATE INDEX IF NOT EXISTS albums_published_at_idx ON albums (published_at DESC, id DESC);
+CREATE INDEX IF NOT EXISTS albums_event_date_idx ON albums (event_date DESC, id DESC);
 
 -- 公告與頁面內文使用的圖片；沒有內容引用時會被清除
 CREATE TABLE IF NOT EXISTS content_images (

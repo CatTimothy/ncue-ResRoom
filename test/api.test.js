@@ -116,8 +116,8 @@ const SAVE_ANNOUNCEMENT = `mutation ($id: ID, $title: String!, $content: String!
 const UPLOAD_PHOTO = `mutation ($file: File!, $alt: String!, $albumId: ID!) {
   uploadPhoto(file: $file, alt: $alt, albumId: $albumId) { id albumId url originalUrl alt }
 }`;
-const SAVE_ALBUM = `mutation ($id: ID, $name: String!, $publishedAt: String) {
-  saveAlbum(id: $id, name: $name, publishedAt: $publishedAt) { id name createdAt modifiedAt publishedAt photoCount coverUrl }
+const SAVE_ALBUM = `mutation ($id: ID, $name: String!, $eventDate: String) {
+  saveAlbum(id: $id, name: $name, eventDate: $eventDate) { id name createdAt modifiedAt eventDate photoCount coverUrl }
 }`;
 const UPLOAD_DOCUMENT = `mutation ($file: File!, $title: String!, $category: String) {
   uploadDocument(file: $file, title: $title, category: $category) { id url filename size category }
@@ -501,6 +501,42 @@ test('photo compression respects orientation, strips EXIF and handles every form
   }
 });
 
+test('old albums keep their publish day as the event date', async () => {
+  const database = await createDatabase();
+  const client = new pg.Client({ connectionString: database.url });
+  await client.connect();
+  await client.query(`
+    CREATE TABLE albums (
+      id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+      name TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      modified_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      published_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      CONSTRAINT albums_name_check CHECK (name ~ '\\S' AND char_length(name) <= 100)
+    );
+    CREATE INDEX albums_published_at_idx ON albums (published_at DESC, id DESC);
+    INSERT INTO albums (name, published_at) VALUES ('舊相簿', '2026-03-15T16:30:00Z');
+  `);
+  await client.end();
+
+  try {
+    await (await openDb(database.url)).close(); // 第一次升級
+    const db = await openDb(database.url); // 再次啟動不會出錯，也不會改變資料
+    try {
+      const row = await db.prepare('SELECT * FROM albums').get();
+      assert.equal(row.name, '舊相簿');
+      assert.equal(row.eventDate, '2026-03-16', 'uses the Taiwan date');
+      assert.equal(row.publishedAt, undefined);
+      const added = await db.prepare("INSERT INTO albums (name) VALUES ('新') RETURNING event_date").get();
+      assert.match(added.eventDate, /^\d{4}-\d{2}-\d{2}$/);
+    } finally {
+      await db.close();
+    }
+  } finally {
+    await dropDatabase(database.name);
+  }
+});
+
 test('old photos table is upgraded without losing data', async () => {
   const database = await createDatabase();
   const client = new pg.Client({ connectionString: database.url });
@@ -714,10 +750,11 @@ test('announcements are ordered and hidden by published_at, and can be searched'
   await gql(`mutation { deleteAnnouncement(id: ${future.id}) }`);
 });
 
-test('album CRUD: visibility, search and deleting removes its photos and files', async () => {
+test('album CRUD: event date, ordering, search and deleting removes its photos and files', async () => {
   const count = uploadsCount();
-  const album = (await gql(SAVE_ALBUM, { name: '  110(1)校外參訪  ', publishedAt: '2026-03-15T16:30:00Z' })).data.saveAlbum;
+  const album = (await gql(SAVE_ALBUM, { name: '  110(1)校外參訪  ', eventDate: '2026-03-16' })).data.saveAlbum;
   assert.equal(album.name, '110(1)校外參訪');
+  assert.equal(album.eventDate, '2026-03-16');
   assert.equal(album.photoCount, 0);
   assert.equal(album.coverUrl, null);
   assert.equal(album.modifiedAt, album.createdAt);
@@ -745,13 +782,27 @@ test('album CRUD: visibility, search and deleting removes its photos and files',
   assert.equal(detail.album.coverUrl, second.url);
   assert.deepEqual(detail.photos.map((row) => row.id), [second.id, first.id]);
 
-  // 未到發布時間：相簿與照片都不公開
-  const hidden = (await gql(SAVE_ALBUM, { id: album.id, name: '110(1)校外參訪', publishedAt: '2099-01-01T00:00:00Z' })).data.saveAlbum;
-  assert.ok(hidden.modifiedAt > hidden.createdAt);
+  // 依活動日期由新到舊排列，和建立順序無關
+  const older = await gql(SAVE_ALBUM, { name: '更早的活動', eventDate: '2020-01-02' });
+  const newer = await gql(SAVE_ALBUM, { name: '更新的活動', eventDate: '2030-01-02' });
+  const names = (await gql('{ albums(limit: 100) { name } }')).data.albums.map((row) => row.name);
+  assert.ok(names.indexOf('更新的活動') < names.indexOf('110(1)校外參訪'));
+  assert.ok(names.indexOf('110(1)校外參訪') < names.indexOf('更早的活動'));
+  for (const { data: { saveAlbum: { id } } } of [older, newer]) {
+    await gql('mutation ($id: ID!) { deleteAlbum(id: $id) }', { id });
+  }
+
+  // 編輯時可改活動日期；不傳就不變。日期未來的相簿照樣公開
+  const moved = (await gql(SAVE_ALBUM, { id: album.id, name: '110(1)校外參訪', eventDate: '2099-01-01' })).data.saveAlbum;
+  assert.equal(moved.eventDate, '2099-01-01');
+  assert.ok(moved.modifiedAt > moved.createdAt);
+  assert.equal((await gql(SAVE_ALBUM, { id: album.id, name: '110(1)校外參訪' })).data.saveAlbum.eventDate, '2099-01-01');
+  assert.match((await gql(SAVE_ALBUM, { id: album.id, name: 'a', eventDate: 'x' })).errors[0].message, /格式/);
   const anonymous = (await gql(query, { id: album.id }, {})).data;
-  assert.equal(anonymous.album, null);
-  assert.deepEqual(anonymous.photos, []);
-  assert.deepEqual(await search('校外參訪'), []);
+  assert.equal(anonymous.album.photoCount, 2);
+  assert.equal(anonymous.photos.length, 2);
+  assert.deepEqual(await search('校外參訪'), ['110(1)校外參訪']);
+  assert.ok((await gql('{ albums { publishedAt } }')).errors, 'publishedAt is gone');
 
   assert.equal((await gql('mutation ($id: ID!) { deleteAlbum(id: $id) }', { id: album.id })).data.deleteAlbum, true);
   assert.equal((await gql('mutation ($id: ID!) { deleteAlbum(id: $id) }', { id: album.id })).data.deleteAlbum, false);

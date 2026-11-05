@@ -1,6 +1,6 @@
 import { fail } from '../lib/errors.js';
 import { withLogin } from '../lib/guards.js';
-import { paging, searchCondition, searchParams, visible } from '../lib/search.js';
+import { paging, searchCondition, searchParams, TAIPEI_TODAY } from '../lib/search.js';
 
 export const albumsTypeDefs = /* GraphQL */ `
   type Album {
@@ -8,22 +8,22 @@ export const albumsTypeDefs = /* GraphQL */ `
     name: String!
     createdAt: String!
     modifiedAt: String!
-    "未到發布時間時，只有登入後才看得到"
-    publishedAt: String!
+    "活動日期 YYYY-MM-DD；相簿依此由新到舊排列"
+    eventDate: String!
     photoCount: Int!
     "封面的壓縮版網址；沒有照片時為 null"
     coverUrl: String
   }
 
   extend type Query {
-    "search 比對相簿名稱或發布日期。未登入時不列出沒有照片的相簿"
+    "search 比對相簿名稱或活動日期。未登入時不列出沒有照片的相簿"
     albums(search: String, limit: Int = 20, offset: Int = 0): [Album!]!
     album(id: ID!): Album
   }
 
   extend type Mutation {
-    "未提供 id 時新增，提供時更新；新增時未提供 publishedAt 則立即發布"
-    saveAlbum(id: ID, name: String!, publishedAt: String): Album!
+    "未提供 id 時新增，提供時更新。未提供 eventDate 時，新增用今天（台灣時區），更新則不變"
+    saveAlbum(id: ID, name: String!, eventDate: String): Album!
     "連同相簿內的照片一起刪除"
     deleteAlbum(id: ID!): Boolean!
   }
@@ -42,29 +42,28 @@ export function createAlbumsResolvers({ db, storage }) {
     Query: {
       albums: (_, { search, limit, offset }, { user }) => db.prepare(`
         SELECT ${ALBUM_FIELDS} FROM albums a
-        WHERE ($1::boolean OR (published_at <= now() AND EXISTS (SELECT 1 FROM photos p WHERE p.album_id = a.id)))
-          AND ${searchCondition('name')}
-        ORDER BY published_at DESC, id DESC
+        WHERE ($1::boolean OR EXISTS (SELECT 1 FROM photos p WHERE p.album_id = a.id))
+          AND ${searchCondition('name', 'a.event_date')}
+        ORDER BY event_date DESC, id DESC
         ${paging(6)}
       `).all(Boolean(user), ...searchParams(search), limit, offset),
 
-      album: (_, { id }, { user }) => db.prepare(`
-        SELECT ${ALBUM_FIELDS} FROM albums a WHERE a.id = $1 AND ${visible(2)}
-      `).get(id, Boolean(user)),
+      album: (_, { id }) => withCount(id),
     },
 
     Mutation: withLogin({
-      async saveAlbum(_, { id, name, publishedAt }) {
+      async saveAlbum(_, { id, name, eventDate }) {
         if (id == null) {
           const created = await db.prepare(`
-            INSERT INTO albums (name, published_at) VALUES (btrim($1), COALESCE($2::timestamptz, now())) RETURNING id
-          `).get(name, publishedAt ?? null);
+            INSERT INTO albums (name, event_date)
+            VALUES (btrim($1), COALESCE($2::date, ${TAIPEI_TODAY})) RETURNING id
+          `).get(name, eventDate ?? null);
           return withCount(created.id);
         }
         const updated = await db.prepare(`
-          UPDATE albums SET name = btrim($1), published_at = COALESCE($2::timestamptz, published_at), modified_at = now()
+          UPDATE albums SET name = btrim($1), event_date = COALESCE($2::date, event_date), modified_at = now()
           WHERE id = $3 RETURNING id
-        `).get(name, publishedAt ?? null, id);
+        `).get(name, eventDate ?? null, id);
         return updated ? withCount(id) : fail('找不到這本相簿');
       },
 

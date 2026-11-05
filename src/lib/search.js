@@ -32,9 +32,8 @@ export function searchParams(search) {
   return [text, date?.year ?? null, date?.month ?? null, date?.day ?? null];
 }
 
-/** 標題符合，或台灣時區的發布日期符合。使用參數 $2 到 $5；欄位名稱只能傳入程式內的固定值 */
-export function searchCondition(titleColumn) {
-  const local = "(published_at AT TIME ZONE 'Asia/Taipei')";
+/** 標題符合，或日期符合（預設是台灣時區的發布日期）。使用參數 $2 到 $5；欄位名稱只能傳入程式內的固定值 */
+export function searchCondition(titleColumn, local = "(published_at AT TIME ZONE 'Asia/Taipei')") {
   return `(
     $2::text IS NULL
     OR strpos(lower(${titleColumn}), lower($2)) > 0
@@ -54,4 +53,4 @@ export const TAIPEI_TODAY = "(now() AT TIME ZONE 'Asia/Taipei')::date";
 export const paging = (n) => `LIMIT LEAST(GREATEST($${n}::int, 1), 100) OFFSET GREATEST($${n + 1}::int, 0)`;
 
 /** 已到發布時間，或參數 $n（是否已登入）為真 */
-export const visible = (n, column = 'published_at') => `($${n}::boolean OR ${column} <= now())`;
+export const visible = (n) => `($${n}::boolean OR published_at <= now())`;

@@ -1,7 +1,7 @@
 <script setup>
 import { useTemplateRef } from 'vue';
 import { currentUser, deleteAlbum } from '../api.js';
-import { albumDeleteQuestion, isScheduled, parseAlbum, rocDateText } from '../format.js';
+import { albumDeleteQuestion, parseAlbum, rocDateText } from '../format.js';
 import { confirmDelete } from '../page.js';
 import AlbumEditor from './AlbumEditor.vue';
 
@@ -26,8 +26,7 @@ const remove = (album) => confirmDelete(albumDeleteQuestion(album), () => delete
       <p v-if="parseAlbum(album.name).term" class="term">{{ parseAlbum(album.name).term }}</p>
       <h3><RouterLink :to="`/photos/${album.id}`">{{ parseAlbum(album.name).name }}</RouterLink></h3>
       <p class="album-card__meta">
-        <time :datetime="album.publishedAt">{{ rocDateText(album.publishedAt) }}</time>，{{ album.photoCount }} 張
-        <span v-if="isScheduled(album)" class="tag">尚未發布</span>
+        <time :datetime="album.eventDate">{{ rocDateText(album.eventDate) }}</time>，{{ album.photoCount }} 張
       </p>
       <div v-if="currentUser" class="photo-actions">
         <button type="button" class="button button--small" :aria-label="`編輯相簿：${album.name}`" @click="editor.open(album)">編輯</button>

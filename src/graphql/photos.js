@@ -1,6 +1,6 @@
 import { fail } from '../lib/errors.js';
 import { withLogin } from '../lib/guards.js';
-import { paging, visible } from '../lib/search.js';
+import { paging } from '../lib/search.js';
 
 export const photosTypeDefs = /* GraphQL */ `
   type Photo {
@@ -29,12 +29,9 @@ export const photosTypeDefs = /* GraphQL */ `
 export function createPhotosResolvers({ db, storage }) {
   return {
     Query: {
-      photos: (_, { albumId, limit, offset }, { user }) => db.prepare(`
-        SELECT p.* FROM photos p JOIN albums a ON a.id = p.album_id
-        WHERE p.album_id = $1 AND ${visible(2, 'a.published_at')}
-        ORDER BY p.id DESC
-        ${paging(3)}
-      `).all(albumId, Boolean(user), limit, offset),
+      photos: (_, { albumId, limit, offset }) => db.prepare(`
+        SELECT * FROM photos WHERE album_id = $1 ORDER BY id DESC ${paging(2)}
+      `).all(albumId, limit, offset),
     },
 
     Mutation: withLogin({
