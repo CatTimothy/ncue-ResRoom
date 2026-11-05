@@ -1,6 +1,7 @@
 <script setup>
 import { computed, ref } from 'vue';
 import { updateDocument, uploadDocument } from '../api.js';
+import { fileBaseName } from '../format.js';
 import { useEditor } from '../useEditor.js';
 import EditorDialog from './EditorDialog.vue';
 
@@ -19,7 +20,7 @@ function open(item = null) {
 
 function onFile(event) {
   file.value = event.target.files[0] ?? null;
-  if (file.value && !form.title) form.title = file.value.name.replace(/\.[^.]+$/, '');
+  if (file.value && !form.title) form.title = fileBaseName(file.value.name);
 }
 
 const submit = () => run(async () => {

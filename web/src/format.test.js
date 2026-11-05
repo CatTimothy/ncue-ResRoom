@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { fileSizeText, fromLocalInput, isScheduled, parseAlbum, rocDate, rocDateText, rocDateTimeText, savedTimeText, toLocalInput, wasEdited } from './format.js';
+import { fileBaseName, fileSizeText, fromLocalInput, fromRocInput, groupByYear, monthDayText, isScheduled, parseAlbum, rocDate, rocDateText, rocDateTimeText, rocShortDate, savedTimeText, taipeiDay, toLocalInput, toRocInput, wasEdited } from './format.js';
 
 test('民國日期以台灣時區計算', () => {
   // UTC 11 月 3 日 16:30 在台灣已是 11 月 4 日
@@ -39,4 +39,63 @@ test('檔案大小', () => {
   assert.equal(fileSizeText(100), '1 KB');
   assert.equal(fileSizeText(2048), '2 KB');
   assert.equal(fileSizeText(3 * 1024 * 1024), '3.0 MB');
+});
+
+test('公告的短日期：時間與純日期都以台灣時區計算', () => {
+  assert.equal(rocShortDate('2026-11-03T16:30:00Z'), '115/11/04');
+  assert.equal(rocShortDate('2026-11-10'), '115/11/10');
+});
+
+test('今天以台灣時區計算', () => {
+  assert.equal(taipeiDay(Date.parse('2026-11-03T16:30:00Z')), '2026-11-04');
+  assert.equal(taipeiDay(Date.parse('2026-11-03T15:30:00Z')), '2026-11-03');
+});
+
+test('照片說明的預設值是去掉副檔名的檔名', () => {
+  assert.equal(fileBaseName('校外參訪 01.final.JPG'), '校外參訪 01.final');
+  assert.equal(fileBaseName('沒有副檔名'), '沒有副檔名');
+  assert.equal(fileBaseName('.jpg'), '.jpg');
+});
+
+test('民國日期輸入轉成西元，各種寫法都接受', () => {
+  for (const text of ['115/11/04', '115/11/4', '115-11-4', '115.11.4', '115／11／4', '115年11月4日', ' 115/11/04 ']) {
+    assert.equal(fromRocInput(text), '2026-11-04', text);
+  }
+  assert.equal(fromRocInput('99/1/2'), '2010-01-02');
+  assert.equal(fromRocInput('115/11/4 9:05', true), '2026-11-04T09:05');
+  assert.equal(fromRocInput('115年11月4日 15:20', true), '2026-11-04T15:20');
+  assert.equal(fromRocInput(''), '');
+});
+
+test('民國日期輸入拒絕不存在的日期與錯誤格式', () => {
+  for (const text of ['115/2/30', '115/13/1', '115/0/1', '0/1/1', '2026/11/04', '115/11', 'abc']) {
+    assert.equal(fromRocInput(text), null, text);
+  }
+  assert.equal(fromRocInput('115/11/4', true), null, '需要時間時不可省略');
+  assert.equal(fromRocInput('115/11/4 15:20'), null, '只要日期時不可加時間');
+  assert.equal(fromRocInput('115/11/4 24:00', true), null);
+  assert.equal(fromRocInput('115/11/4 12:60', true), null);
+  assert.equal(fromRocInput('116/2/29'), null, '民國 116 年不是閏年');
+  assert.equal(fromRocInput('113/2/29'), '2024-02-29', '民國 113 年是閏年');
+});
+
+test('西元輸入值轉成民國顯示', () => {
+  assert.equal(toRocInput('2026-11-04'), '115/11/04');
+  assert.equal(toRocInput('2026-11-04T15:20'), '115/11/04 15:20');
+  assert.equal(toRocInput(''), '');
+  assert.equal(fromRocInput(toRocInput('2026-11-04T15:20'), true), '2026-11-04T15:20');
+});
+
+test('公告依民國年分組，跨年以台灣時區為準，順序不變', () => {
+  const a = { publishedAt: '2026-11-03T16:30:00Z' };
+  const b = { publishedAt: '2026-01-01T00:00:00Z' };
+  const c = { publishedAt: '2025-12-31T16:30:00Z' }; // 台灣時間已是 115 年 1 月 1 日
+  const d = { publishedAt: '2025-12-31T15:30:00Z' }; // 台灣時間還是 114 年
+  assert.deepEqual(groupByYear([a, b, c, d]), [{ year: 115, items: [a, b, c] }, { year: 114, items: [d] }]);
+  assert.deepEqual(groupByYear([]), []);
+});
+
+test('清單的月日以台灣時區計算', () => {
+  assert.equal(monthDayText('2026-11-03T16:30:00Z'), '11月4日');
+  assert.equal(monthDayText('2026-12-31T00:00:00Z'), '12月31日');
 });
