@@ -1,13 +1,14 @@
 <script setup>
 import { computed, ref } from 'vue';
 import { fetchAlbums, updatePhoto, uploadPhotos } from '../api.js';
+import { fileBaseName } from '../format.js';
 import { useEditor } from '../useEditor.js';
 import EditorDialog from './EditorDialog.vue';
 
 const props = defineProps({ albumId: { type: String, required: true } });
 
 const { dialog, form, changed, busy, error, show, load, run } = useEditor({ alt: '', albumId: '' });
-const items = ref([]); // 待上傳的照片：{ file, number, error }
+const items = ref([]); // 待上傳的照片：{ key, file, alt, error }
 const albums = ref([]);
 const fileInputKey = ref(0);
 const id = ref(null);
@@ -29,9 +30,8 @@ function open(photo = null) {
 }
 
 function onFiles(event) {
-  const files = [...event.target.files];
-  // 多張時要加編號，否則每張的說明都相同，螢幕報讀軟體使用者無法分辨
-  items.value = files.map((file, index) => ({ file, number: files.length > 1 ? index + 1 : null, error: '' }));
+  // 每張的說明預設為檔名，上傳前可以逐張修改
+  items.value = [...event.target.files].map((file, key) => ({ key, file, alt: fileBaseName(file.name).slice(0, 500), error: '' }));
   error.value = '';
 }
 
@@ -40,7 +40,7 @@ async function upload() {
   progress.value = 0;
   const result = await uploadPhotos(
     items.value,
-    { alt: form.alt, albumId: props.albumId },
+    props.albumId,
     { onProgress: (current) => { progress.value = current; }, shouldStop: () => stopRequested },
   );
   if (!result.failed.length && !result.remaining.length) {
@@ -95,17 +95,20 @@ defineExpose({ open });
     </label>
 
     <ul v-if="items.length" class="upload-list" aria-label="待上傳的照片">
-      <li v-for="item in items" :key="item.number ?? item.file.name">
-        <span>{{ item.file.name }}</span>
+      <li v-for="item in items" :key="item.key">
+        <label class="field">
+          <span>{{ item.file.name }} 的說明</span>
+          <input v-model="item.alt" required maxlength="500" :disabled="busy" />
+        </label>
         <span v-if="item.error" class="upload-list__error">{{ item.error }}</span>
       </li>
     </ul>
+    <small v-if="items.length" class="upload-list__hint">預設為檔案名稱。請改成描述照片的內容，螢幕報讀軟體會讀出這段文字；上傳後也可以再修改。</small>
 
-    <label class="field">
+    <label v-if="id" class="field">
       <span>照片說明</span>
-      <input v-model="form.alt" required :maxlength="items.length > 1 ? 480 : 500" :disabled="busy" />
-      <small v-if="items.length > 1">每張會自動加上編號，例如「{{ form.alt.trim() || '說明' }}（第 1 張）」；上傳後可以逐張修改。</small>
-      <small v-else>描述照片的內容，螢幕報讀軟體會讀出這段文字。</small>
+      <input v-model="form.alt" required maxlength="500" :disabled="busy" />
+      <small>描述照片的內容，螢幕報讀軟體會讀出這段文字。</small>
     </label>
 
     <label v-if="id" class="field">

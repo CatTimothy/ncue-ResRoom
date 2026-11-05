@@ -25,19 +25,19 @@ function mockUpload(respond = () => ({ data: { uploadPhoto: { id: '1' } } })) {
   return calls;
 }
 
-const item = (name, number = null) => ({ file: new File(['x'], name), number, error: '' });
+const item = (name) => ({ file: new File(['x'], name), alt: `說明 ${name}`, error: '' });
 
 test('多張照片依序上傳：倒序送出，顯示時才會是選擇的順序', async () => {
   const calls = mockUpload();
   const version = contentVersion.value;
   const progress = [];
   const result = await uploadPhotos(
-    [item('a.jpg', 1), item('b.jpg', 2), item('c.jpg', 3)],
-    { alt: '參訪', albumId: '7' },
+    [item('a.jpg'), item('b.jpg'), item('c.jpg')],
+    '7',
     { onProgress: (current) => progress.push(current) },
   );
 
-  assert.deepEqual(calls.map((call) => call.alt), ['參訪（第 3 張）', '參訪（第 2 張）', '參訪（第 1 張）']);
+  assert.deepEqual(calls.map((call) => call.alt), ['說明 c.jpg', '說明 b.jpg', '說明 a.jpg'], '每張用自己的說明');
   assert.ok(calls.every((call) => call.albumId === '7'));
   assert.deepEqual(progress, [1, 2, 3]);
   assert.deepEqual(result, { uploaded: 3, failed: [], remaining: [] });
@@ -45,17 +45,16 @@ test('多張照片依序上傳：倒序送出，顯示時才會是選擇的順�
   assert.equal(notice.value, '已上傳 3 張照片');
 });
 
-test('只有一張時不加編號', async () => {
-  const calls = mockUpload();
-  await uploadPhotos([item('a.jpg')], { alt: '合照', albumId: '1' });
-  assert.equal(calls[0].alt, '合照');
+test('只有一張時的提示文字', async () => {
+  mockUpload();
+  await uploadPhotos([item('a.jpg')], '1');
   assert.equal(notice.value, '照片已上傳');
 });
 
 test('其中一張失敗時繼續上傳其他照片，並回報原因', async () => {
-  mockUpload((alt) => (alt.includes('第 2 張') ? { errors: [{ message: '無法讀取這張照片' }] } : { data: {} }));
-  const b = item('b.jpg', 2);
-  const result = await uploadPhotos([item('a.jpg', 1), b, item('c.jpg', 3)], { alt: '參訪', albumId: '1' });
+  mockUpload((alt) => (alt.includes('b.jpg') ? { errors: [{ message: '無法讀取這張照片' }] } : { data: {} }));
+  const b = item('b.jpg');
+  const result = await uploadPhotos([item('a.jpg'), b, item('c.jpg')], '1');
   assert.equal(result.uploaded, 2);
   assert.deepEqual(result.failed, [{ item: b, message: '無法讀取這張照片' }]);
   assert.deepEqual(result.remaining, []);
@@ -64,7 +63,7 @@ test('其中一張失敗時繼續上傳其他照片，並回報原因', async ()
 test('全部失敗時不更新畫面', async () => {
   mockUpload(() => new TypeError('Failed to fetch'));
   const version = contentVersion.value;
-  const result = await uploadPhotos([item('a.jpg', 1), item('b.jpg', 2)], { alt: '參訪', albumId: '1' });
+  const result = await uploadPhotos([item('a.jpg'), item('b.jpg')], '1');
   assert.equal(result.uploaded, 0);
   assert.equal(result.failed.length, 2);
   assert.match(result.failed[0].message, /無法連線/);
@@ -73,11 +72,11 @@ test('全部失敗時不更新畫面', async () => {
 
 test('要求停止時，目前這張傳完就停，其餘照片保留順序', async () => {
   const calls = mockUpload();
-  const a = item('a.jpg', 1);
-  const b = item('b.jpg', 2);
-  const c = item('c.jpg', 3);
+  const a = item('a.jpg');
+  const b = item('b.jpg');
+  const c = item('c.jpg');
   let stop = false;
-  const result = await uploadPhotos([a, b, c], { alt: '參訪', albumId: '1' }, {
+  const result = await uploadPhotos([a, b, c], '1', {
     onProgress: () => { stop = true; },
     shouldStop: () => stop,
   });
@@ -92,7 +91,7 @@ test('登入過期時停止上傳、回到未登入狀態，已傳成功的照�
   mockUpload(() => (++count === 2 ? { status: 401 } : { data: {} }));
   const version = contentVersion.value;
   await assert.rejects(
-    uploadPhotos([item('a.jpg', 1), item('b.jpg', 2), item('c.jpg', 3)], { alt: '參訪', albumId: '1' }),
+    uploadPhotos([item('a.jpg'), item('b.jpg'), item('c.jpg')], '1'),
     /登入已過期/,
   );
   assert.equal(count, 2);

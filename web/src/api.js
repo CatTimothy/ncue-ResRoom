@@ -140,12 +140,11 @@ export const fetchPhotos = (albumId, limit, offset = 0) => query(
 );
 
 /**
- * 依序上傳多張照片，一張失敗不影響其他張。
+ * 依序上傳多張照片，一張失敗不影響其他張。每張都有自己的說明（item.alt）。
  * 清單由新到舊顯示，所以倒序送出，顯示時才會是選擇的順序。
- * items 的 number 不為 null 時，會加在說明後面。
  * 回傳 { uploaded, failed: [{ item, message }], remaining }；登入過期時會中止。
  */
-export async function uploadPhotos(items, { alt, albumId }, { onProgress = () => {}, shouldStop = () => false } = {}) {
+export async function uploadPhotos(items, albumId, { onProgress = () => {}, shouldStop = () => false } = {}) {
   const pending = [...items].reverse();
   const failed = [];
   let uploaded = 0;
@@ -158,7 +157,7 @@ export async function uploadPhotos(items, { alt, albumId }, { onProgress = () =>
       try {
         await sendFile(
           'mutation ($file: File!, $alt: String!, $albumId: ID!) { uploadPhoto(file: $file, alt: $alt, albumId: $albumId) { id } }',
-          { alt: item.number ? `${alt.trim()}（第 ${item.number} 張）` : alt, albumId },
+          { alt: item.alt, albumId },
           item.file,
         );
         uploaded++;
