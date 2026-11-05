@@ -1180,6 +1180,17 @@ h2 {
   overflow-wrap: anywhere;
 }
 
+.site-footer__bottom {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 2rem;
+  justify-content: space-between;
+  margin-top: 2rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgb(255 255 255 / 0.3);
+  font-size: 0.9375rem;
+}
+
 
 /* 動態全部放在這裡，要求減少動態的使用者不會看到 */
 @media (prefers-reduced-motion: no-preference) {

@@ -351,6 +351,13 @@ test('scheduled announcements do not count or reveal views to visitors', async (
   await gql('mutation ($id: ID!) { deleteAnnouncement(id: $id) }', { id });
 });
 
+test('daily visits are counted without logging in', async () => {
+  const before = (await gql('{ todayVisits }', {}, {})).data.todayVisits;
+  assert.equal((await gql('mutation { recordVisit }', {}, {})).data.recordVisit, before + 1);
+  assert.equal((await gql('mutation { recordVisit }', {}, {})).data.recordVisit, before + 2);
+  assert.equal((await gql('{ todayVisits }', {}, {})).data.todayVisits, before + 2);
+});
+
 test('inline HTML pages are sanitized but keep allowed embeds', async () => {
   const content = `<h1 class="x">標題</h1><script>alert(1)</script><img src="a.png" alt="圖" onerror="alert(1)">
     <a href="javascript:alert(1)">x</a>

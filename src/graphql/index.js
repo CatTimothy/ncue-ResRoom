@@ -6,6 +6,7 @@ import { contentImagesTypeDefs, createContentImagesResolvers } from './content-i
 import { createDocumentsResolvers, documentsTypeDefs } from './documents.js';
 import { createPagesResolvers, pagesTypeDefs } from './pages.js';
 import { createPhotosResolvers, photosTypeDefs } from './photos.js';
+import { createVisitsResolvers, visitsTypeDefs } from './visits.js';
 
 const rootTypeDefs = /* GraphQL */ `
   scalar File
@@ -32,6 +33,7 @@ export function createGraphQLHandler({ db, storage, sessions, production, allowe
         photosTypeDefs,
         documentsTypeDefs,
         contentImagesTypeDefs,
+        visitsTypeDefs,
       ],
       resolvers: [
         createAuthResolvers(deps),
@@ -41,6 +43,7 @@ export function createGraphQLHandler({ db, storage, sessions, production, allowe
         createPhotosResolvers(deps),
         createDocumentsResolvers(deps),
         createContentImagesResolvers(deps),
+        createVisitsResolvers(deps),
       ],
     }),
     context: ({ request }) => sessions.current(request.headers.get('cookie')),

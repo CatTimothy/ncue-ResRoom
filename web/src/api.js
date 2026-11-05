@@ -112,6 +112,10 @@ export const deleteAnnouncement = deleter('deleteAnnouncement', '公告已刪除
 /** 不算內容修改，所以不清除快取；回傳目前的瀏覽人次 */
 export const recordAnnouncementView = (id) => query('mutation ($id: ID!) { recordAnnouncementView(id: $id) }', { id });
 
+// 訪問人數
+export const fetchTodayVisits = () => query('{ todayVisits }');
+export const recordVisit = () => query('mutation { recordVisit }');
+
 // 內文圖片
 export const uploadContentImage = (file) => sendFile(
   'mutation ($file: File!) { uploadContentImage(file: $file) { url name } }',

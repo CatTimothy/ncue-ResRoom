@@ -156,3 +156,9 @@ CREATE TABLE IF NOT EXISTS documents (
   CONSTRAINT documents_filename_check CHECK (char_length(filename) <= 255),
   CONSTRAINT documents_size_check CHECK (size BETWEEN 0 AND 20971520)
 );
+
+-- 每天（台灣時區）的訪問人數
+CREATE TABLE IF NOT EXISTS daily_visits (
+  day      DATE PRIMARY KEY,
+  visitors INTEGER NOT NULL
+);

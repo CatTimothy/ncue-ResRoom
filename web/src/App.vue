@@ -4,8 +4,11 @@ import { useRoute } from 'vue-router';
 import { currentUser, fetchPages, logout, notice } from './api.js';
 import { BUILT_IN_PAGES } from './router.js';
 import { useCachedItem } from './useCachedItem.js';
+import { useTodayVisits } from './useTodayVisits.js';
 
 const route = useRoute();
+const visitors = useTodayVisits();
+const year = new Date().getFullYear();
 
 // 管理員另外新增的頁面接在主選單後面
 const { item: pages } = useCachedItem(() => 'pages', fetchPages);
@@ -81,6 +84,10 @@ async function signOut() {
         </dd>
       </div>
     </dl>
+    <div class="site-footer__bottom">
+      <small>Copyright © {{ year }} 國立彰化師範大學資源教室</small>
+      <small v-if="visitors !== null">今日訪問人數：{{ visitors }}</small>
+    </div>
   </footer>
 
   <p class="toast" :class="{ 'is-visible': notice }" role="status">{{ notice }}</p>

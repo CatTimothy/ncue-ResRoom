@@ -47,6 +47,9 @@ export function searchCondition(titleColumn) {
   )`;
 }
 
+/** 今天（台灣時區）的 SQL 運算式 */
+export const TAIPEI_TODAY = "(now() AT TIME ZONE 'Asia/Taipei')::date";
+
 /** 分頁：limit 是參數 $n，offset 是 $(n+1)。單次最多 100 筆 */
 export const paging = (n) => `LIMIT LEAST(GREATEST($${n}::int, 1), 100) OFFSET GREATEST($${n + 1}::int, 0)`;
 
