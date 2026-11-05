@@ -76,6 +76,17 @@ BEGIN
   END IF;
 END $$;
 
+-- 公告資訊，欄位對應學校公告系統，方便之後同步；舊資料留空，瀏覽人次從 0 開始
+ALTER TABLE announcements
+  ADD COLUMN IF NOT EXISTS unit TEXT NOT NULL DEFAULT ''
+    CONSTRAINT announcements_unit_check CHECK (char_length(unit) <= 100),
+  ADD COLUMN IF NOT EXISTS views INTEGER NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS deadline DATE,
+  ADD COLUMN IF NOT EXISTS contact_person TEXT NOT NULL DEFAULT ''
+    CONSTRAINT announcements_contact_person_check CHECK (char_length(contact_person) <= 100),
+  ADD COLUMN IF NOT EXISTS extension TEXT NOT NULL DEFAULT ''
+    CONSTRAINT announcements_extension_check CHECK (char_length(extension) <= 50);
+
 CREATE TABLE IF NOT EXISTS albums (
   id           BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   name         TEXT NOT NULL,

@@ -1,11 +1,12 @@
 import { computed, reactive, ref, useTemplateRef } from 'vue';
 
-/** 編輯視窗共用的狀態。要搭配 ref="dialog" 的 EditorDialog 使用 */
+/** 編輯表單共用的狀態。dialog 與 show 只有 ref="dialog" 的 EditorDialog 才用得到 */
 export function useEditor(initial) {
   const dialog = useTemplateRef('dialog');
   const form = reactive({ ...initial });
-  const saved = ref('');
+  const saved = ref(JSON.stringify(form));
   const loading = ref(false);
+  const loadFailed = ref(false);
   const busy = ref(false);
   const error = ref('');
 
@@ -17,6 +18,9 @@ export function useEditor(initial) {
     Object.assign(form, values);
     saved.value = snapshot();
   }
+
+  /** 目前的內容已儲存，之後換頁不用再確認 */
+  const markSaved = () => reset({});
 
   function show(values) {
     reset(values);
@@ -30,6 +34,7 @@ export function useEditor(initial) {
     try {
       await request();
     } catch (failure) {
+      loadFailed.value = true;
       error.value = failure.message;
     } finally {
       loading.value = false;
@@ -49,5 +54,5 @@ export function useEditor(initial) {
     }
   }
 
-  return { dialog, form, changed, loading, busy, error, reset, show, load, run };
+  return { dialog, form, changed, loading, loadFailed, busy, error, reset, markSaved, show, load, run };
 }

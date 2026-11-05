@@ -3,7 +3,7 @@ import { computed, useTemplateRef } from 'vue';
 import { currentUser, deleteDocument, fetchDocuments } from '../api.js';
 import DocumentEditor from '../components/DocumentEditor.vue';
 import ListStatus from '../components/ListStatus.vue';
-import { fileSizeText } from '../format.js';
+import { deleteQuestion, fileSizeText } from '../format.js';
 import { confirmDelete } from '../page.js';
 import { usePagedList } from '../usePagedList.js';
 
@@ -20,7 +20,7 @@ const groups = computed(() => {
   return [...byCategory];
 });
 
-const remove = (item) => confirmDelete(`確定要刪除「${item.title}」嗎？`, () => deleteDocument(item.id));
+const remove = (item) => confirmDelete(deleteQuestion(item.title), () => deleteDocument(item.id));
 </script>
 
 <template>

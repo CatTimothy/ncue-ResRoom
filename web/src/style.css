@@ -113,15 +113,6 @@ h2 {
   font-size: clamp(1.75rem, 1.5rem + 1vw, 2.25rem);
 }
 
-.visually-hidden {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
-}
-
 .skip-link {
   position: absolute;
   top: 0.5rem;
@@ -277,6 +268,21 @@ h2 {
   justify-self: start;
 }
 
+/* 直接在頁面上編輯文章 */
+.form--page {
+  max-width: 64rem;
+}
+
+.field-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(14rem, 100%), 1fr));
+  gap: 1.25rem;
+}
+
+.field-row .field {
+  align-content: start;
+}
+
 /* 編輯視窗 */
 .editor {
   width: min(44rem, 100vw - 2rem);
@@ -295,10 +301,6 @@ h2 {
 
 .editor .form {
   max-width: none;
-}
-
-.editor--wide {
-  width: min(64rem, 100vw - 2rem);
 }
 
 /* Markdown 編輯器 */
@@ -692,11 +694,29 @@ h2 {
   list-style: none;
 }
 
+/* 同一年的公告：左側的線條連起整年，線條中斷處就是換年 */
+.announcement-year {
+  --year-line: 3px;
+  padding-left: 0.75rem;
+  border-left: var(--year-line) solid var(--blue);
+}
+
+.announcement-year + .announcement-year {
+  margin-top: 2rem;
+}
+
+.announcement-year__label {
+  margin: 0 0 0.5rem;
+  font-family: var(--display);
+  font-size: 1.25rem;
+  line-height: 1.25;
+}
+
 /* 公告清單：每則是引導線上的一個小站 */
 .announcement-list li {
   position: relative;
   display: grid;
-  grid-template-columns: 5.5rem minmax(0, 1fr);
+  grid-template-columns: 7.5rem minmax(0, 1fr);
   gap: 1rem;
   align-items: baseline;
   margin-inline: -0.75rem;
@@ -706,7 +726,7 @@ h2 {
 }
 
 .announcement-list.has-actions li {
-  grid-template-columns: 5.5rem minmax(0, 1fr) auto;
+  grid-template-columns: 7.5rem minmax(0, 1fr) auto;
 }
 
 .edited {
@@ -714,6 +734,10 @@ h2 {
   color: var(--ink-soft);
   font-size: 0.875rem;
   line-height: 1.6;
+}
+
+.edited--short {
+  font-size: 0.75rem;
 }
 
 .tag {
@@ -735,7 +759,8 @@ h2 {
 .announcement-list li::before {
   position: absolute;
   top: 1.75rem;
-  left: calc(0.75rem - var(--rail-gap) - var(--rail-width) / 2 - 0.375rem);
+  /* 清單項目的左緣貼著年份線條，往左退回引導線的中央 */
+  left: calc(-1 * (var(--year-line) + var(--rail-gap) + var(--rail-width) / 2 + 0.375rem));
   width: 0.75rem;
   height: 0.75rem;
   border-radius: 50%;
@@ -744,20 +769,11 @@ h2 {
   content: '';
 }
 
-.announcement-list time {
-  display: flex;
-  flex-direction: column;
-  line-height: 1.25;
-}
-
 .date__day {
   font-family: var(--display);
   font-size: 1.5rem;
-}
-
-.date__year {
-  color: var(--ink-soft);
-  font-size: 0.9375rem;
+  line-height: 1.25;
+  white-space: nowrap;
 }
 
 .announcement-list a {
@@ -794,12 +810,6 @@ h2 {
     margin-top: 0.375rem;
   }
 
-  .announcement-list time {
-    flex-direction: row;
-    gap: 0.5rem;
-    align-items: baseline;
-  }
-
   .date__day {
     font-size: 1.25rem;
   }
@@ -825,16 +835,12 @@ h2 {
   border-top: 1px solid var(--line);
 }
 
-.article > .article__body {
-  margin-top: 2rem;
-}
-
 .article__body {
   line-height: 1.9;
   overflow-wrap: anywhere;
 }
 
-.article__body img {
+.article__chunk img {
   margin-block: 1.5rem;
   border-radius: 0.75rem;
 }
@@ -869,7 +875,7 @@ h2 {
   font-size: 1.25rem;
 }
 
-.article__body > :first-child {
+.article__chunk:first-child > :first-child {
   margin-top: 0;
 }
 
@@ -884,6 +890,53 @@ h2 {
   margin-inline: 0;
   padding-left: 1rem;
   border-left: 0.3rem solid var(--yellow-deep);
+}
+
+/* 公告資訊 */
+.announcement__label {
+  margin: 0 0 0.25rem;
+  color: var(--ink-soft);
+  font-size: 0.9375rem;
+}
+
+.announcement-info {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 1.5rem 0 0;
+  border-top: 1px solid var(--line);
+  border-left: 1px solid var(--line);
+  background: var(--white);
+}
+
+.announcement-info > div {
+  display: grid;
+  grid-template-columns: 5.5rem minmax(0, 1fr);
+  border-right: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.announcement-info dt {
+  padding: 0.5rem 0.75rem;
+  background: var(--paper);
+  color: var(--ink-soft);
+  font-size: 0.9375rem;
+}
+
+.announcement-info dd {
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 40rem) {
+  .announcement-info {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.announcement__body-title {
+  margin: 2rem 0 0.75rem;
+  font-size: 1.25rem;
 }
 
 /* 活動剪影 */

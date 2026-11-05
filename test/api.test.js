@@ -163,7 +163,7 @@ test('expired sessions are rejected', async () => {
   auth = (await login(USER.username, USER.password)).headers;
 });
 
-test('every mutation except login and logout requires a session', async () => {
+test('every mutation except login, logout and the view counters requires a session', async () => {
   const blocked = [
     'mutation { deletePage(slug: "a") }',
     'mutation { saveAnnouncement(title: "a", content: "b") { id } }',
@@ -193,11 +193,13 @@ test('users only expose a username', async () => {
   assert.deepEqual(columns.map((c) => c.columnName), ['username', 'password_hash']);
 });
 
-test('announcements only have id, title, content, created_at and modified_at', async () => {
+test('announcements have the expected columns', async () => {
   const columns = await app.db.prepare(`
     SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'announcements' ORDER BY ordinal_position
   `).all();
-  assert.deepEqual(columns.map((c) => c.columnName), ['id', 'title', 'content', 'created_at', 'modified_at', 'published_at']);
+  assert.deepEqual(columns.map((c) => c.columnName), [
+    'id', 'title', 'content', 'created_at', 'modified_at', 'published_at', 'unit', 'views', 'deadline', 'contact_person', 'extension',
+  ]);
   assert.equal(columns[2].dataType, 'text');
   assert.equal(columns[3].dataType, 'timestamp with time zone');
   assert.equal(columns[4].dataType, 'timestamp with time zone');
@@ -297,10 +299,56 @@ test('announcements render Markdown and pictures, and drop raw HTML', async () =
   assert.ok(html.includes('<img src="https://example.com/a.jpg" alt="合照"'));
   assert.ok(html.includes('<img src="/files/x.png" alt="本站"'));
   assert.ok(html.includes('文字'));
-  for (const bad of ['<script', '<iframe', '<b', 'onclick', 'javascript:', 'data:image']) {
+  for (const bad of ['<script', '<iframe', '<b ', '<b>', 'onclick', 'javascript:', 'data:image']) {
     assert.ok(!html.includes(bad), `html should not contain ${bad}: ${html}`);
   }
   await gql(`mutation { deleteAnnouncement(id: ${id}) }`);
+});
+
+test('announcements store the school announcement fields', async () => {
+  const SAVE = `mutation ($id: ID, $title: String!, $content: String!, $unit: String, $deadline: String, $contactPerson: String, $extension: String) {
+    saveAnnouncement(id: $id, title: $title, content: $content, unit: $unit, deadline: $deadline, contactPerson: $contactPerson, extension: $extension) {
+      id html unit views deadline contactPerson extension
+    }
+  }`;
+  const content = '本校師資培育中心專案行政助理甄選--公告錄取結果\n正　取：洪○全\n備　取：施○宜';
+  const { saveAnnouncement: saved } = (await gql(SAVE, {
+    title: '📣公告錄取結果', content, unit: ' 師資培育中心 ', deadline: '2026-11-10', contactPerson: '巫孟橙', extension: '1135',
+  })).data;
+  assert.equal(saved.unit, '師資培育中心');
+  assert.equal(saved.deadline, '2026-11-10');
+  assert.equal(saved.contactPerson, '巫孟橙');
+  assert.equal(saved.extension, '1135');
+  assert.equal(saved.views, 0);
+  assert.match(saved.html, /正　取：洪○全<br\s*\/?>\s*備　取：施○宜/, 'a single newline stays a line break');
+
+  const VIEW = 'mutation ($id: ID!) { recordAnnouncementView(id: $id) }';
+  assert.equal((await gql(VIEW, { id: saved.id }, {})).data.recordAnnouncementView, 1);
+  assert.equal((await gql(VIEW, { id: saved.id }, {})).data.recordAnnouncementView, 2);
+  assert.equal((await gql(VIEW, { id: saved.id })).data.recordAnnouncementView, 2, 'admins are not counted');
+  assert.equal((await gql(VIEW, { id: '99999' }, {})).data.recordAnnouncementView, null);
+
+  const edited = (await gql(SAVE, { id: saved.id, title: 't', content: 'c' })).data.saveAnnouncement;
+  assert.equal(edited.views, 2, 'editing keeps the view count');
+  assert.equal(edited.deadline, '2026-11-10', 'omitted fields stay as they were');
+  assert.equal(edited.unit, '師資培育中心');
+  const cleared = (await gql(SAVE, { id: saved.id, title: 't', content: 'c', deadline: null, unit: '' })).data.saveAnnouncement;
+  assert.equal(cleared.deadline, null, 'an explicit null clears the deadline');
+  assert.equal(cleared.unit, '');
+  assert.equal(cleared.contactPerson, '巫孟橙');
+
+  assert.match((await gql(SAVE, { title: 't', content: 'c', deadline: 'x' })).errors[0].message, /時間格式/);
+  assert.match((await gql(SAVE, { title: 't', content: 'c', unit: 'x'.repeat(101) })).errors[0].message, /公告單位/);
+  await gql('mutation ($id: ID!) { deleteAnnouncement(id: $id) }', { id: saved.id });
+});
+
+test('scheduled announcements do not count or reveal views to visitors', async () => {
+  const future = new Date(Date.now() + 86400000).toISOString();
+  const { id } = (await gql(`mutation { saveAnnouncement(title: "未來", content: "c", publishedAt: "${future}") { id } }`)).data.saveAnnouncement;
+  const VIEW = 'mutation ($id: ID!) { recordAnnouncementView(id: $id) }';
+  assert.equal((await gql(VIEW, { id }, {})).data.recordAnnouncementView, null);
+  assert.equal((await gql(VIEW, { id })).data.recordAnnouncementView, 0);
+  await gql('mutation ($id: ID!) { deleteAnnouncement(id: $id) }', { id });
 });
 
 test('inline HTML pages are sanitized but keep allowed embeds', async () => {

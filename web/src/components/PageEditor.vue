@@ -1,53 +1,57 @@
 <script setup>
-import { defineAsyncComponent, ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { defineAsyncComponent } from 'vue';
 import { fetchPageSource, savePage } from '../api.js';
+import { useLeaveGuard } from '../useEditMode.js';
 import { useEditor } from '../useEditor.js';
-import EditorDialog from './EditorDialog.vue';
+import EditorForm from './EditorForm.vue';
 
 const MarkdownEditor = defineAsyncComponent(() => import('./MarkdownEditor.vue'));
 
-const router = useRouter();
-const { dialog, form, changed, loading, busy, error, reset, show, load, run } = useEditor({ slug: '', title: '', content: '' });
-const creating = ref(false);
+const props = defineProps({
+  /** 不提供時是新增頁面；提供時編輯（頁面不存在就建立） */
+  slug: { type: String, default: null },
+  initialTitle: { type: String, default: '' },
+});
+const emit = defineEmits(['done', 'cancel']);
 
-/** 傳入 { slug, title } 時編輯（頁面不存在就建立）；不傳時新增頁面 */
-function open(page = null) {
-  creating.value = !page;
-  show({ slug: page?.slug ?? '', title: page?.title ?? '', content: '' });
-  if (!page) return;
+const { form, changed, loading, loadFailed, busy, error, reset, markSaved, load, run } = useEditor({
+  slug: props.slug ?? '',
+  title: props.initialTitle,
+  content: '',
+});
+const creating = !props.slug;
 
+useLeaveGuard(changed);
+
+if (props.slug) {
   load(async () => {
-    const existing = await fetchPageSource(page.slug);
+    const existing = await fetchPageSource(props.slug);
     if (existing) reset({ title: existing.title, content: existing.source });
   });
 }
 
 const submit = () => run(async () => {
   // 儲存時相同網址會覆蓋舊內容，新增時要先確認沒有重複
-  if (creating.value && await fetchPageSource(form.slug)) {
+  if (creating && await fetchPageSource(form.slug)) {
     error.value = `網址「${form.slug}」已經有頁面了，請換一個。`;
     return;
   }
   await savePage(form);
-  dialog.value.close();
-  if (creating.value) router.push(`/pages/${form.slug}`);
+  markSaved();
+  emit('done', form.slug);
 });
-
-defineExpose({ open });
 </script>
 
 <template>
-  <EditorDialog
-    ref="dialog"
-    wide
+  <EditorForm
+    class="form--page"
     :title="creating ? '新增頁面' : '編輯頁面'"
     :submit-label="creating ? '建立頁面' : '儲存'"
     :busy="busy"
-    :disabled="loading"
-    :dirty="changed"
+    :disabled="loading || loadFailed"
     :error="error"
     @submit="submit"
+    @cancel="emit('cancel')"
   >
     <p v-if="loading" class="loading">載入中…</p>
     <label class="field">
@@ -63,5 +67,5 @@ defineExpose({ open });
       <span>內容</span>
       <MarkdownEditor v-model="form.content" :disabled="loading" @error="error = $event" />
     </div>
-  </EditorDialog>
+  </EditorForm>
 </template>

@@ -1,39 +1,37 @@
 <script setup>
-import { useTemplateRef } from 'vue';
+import { computed } from 'vue';
 import { currentUser, deleteAnnouncement } from '../api.js';
-import { isScheduled, rocDate, rocDateText, wasEdited } from '../format.js';
+import { deleteQuestion, groupByYear, isScheduled, monthDayText, rocDateText, rocShortDate, wasEdited } from '../format.js';
 import { confirmDelete } from '../page.js';
-import AnnouncementEditor from './AnnouncementEditor.vue';
 
-defineProps({ items: { type: Array, required: true } });
+const props = defineProps({ items: { type: Array, required: true } });
 
-const editor = useTemplateRef('editor');
+const groups = computed(() => groupByYear(props.items));
 
-const remove = (item) => confirmDelete(`確定要刪除「${item.title}」嗎？`, () => deleteAnnouncement(item.id));
+const remove = (item) => confirmDelete(deleteQuestion(item.title), () => deleteAnnouncement(item.id));
 </script>
 
 <template>
   <div v-if="currentUser" class="admin-bar">
-    <button type="button" class="button button--small" @click="editor.open()">新增公告</button>
+    <RouterLink class="button button--small" to="/announcements?new=1">新增公告</RouterLink>
   </div>
 
-  <ol v-if="items.length" class="announcement-list" :class="{ 'has-actions': currentUser }">
-    <li v-for="item in items" :key="item.id">
-      <time :datetime="item.publishedAt" :aria-label="rocDateText(item.publishedAt)">
-        <span class="date__day">{{ rocDate(item.publishedAt).month }}/{{ rocDate(item.publishedAt).day }}</span>
-        <span class="date__year">{{ rocDate(item.publishedAt).year }} 年</span>
-      </time>
-      <div>
-        <RouterLink :to="`/announcements/${item.id}`">{{ item.title }}</RouterLink>
-        <span v-if="isScheduled(item)" class="tag">尚未發布</span>
-        <small v-if="wasEdited(item)" class="edited">編輯於 {{ rocDateText(item.modifiedAt) }}</small>
-      </div>
-      <div v-if="currentUser" class="row-actions">
-        <button type="button" class="button button--small button--quiet" :aria-label="`編輯公告：${item.title}`" @click="editor.open(item)">編輯</button>
-        <button type="button" class="button button--small button--quiet" :aria-label="`刪除公告：${item.title}`" @click="remove(item)">刪除</button>
-      </div>
-    </li>
-  </ol>
-
-  <AnnouncementEditor v-if="currentUser" ref="editor" />
+  <!-- 左側的線條連起同一年的公告，線條中斷處就是換年 -->
+  <div v-for="group in groups" :key="group.year" class="announcement-year">
+    <p class="announcement-year__label">{{ group.year }} 年</p>
+    <ol class="announcement-list" :class="{ 'has-actions': currentUser }">
+      <li v-for="item in group.items" :key="item.id">
+        <time class="date__day" :datetime="item.publishedAt" :aria-label="rocDateText(item.publishedAt)">{{ monthDayText(item.publishedAt) }}</time>
+        <div>
+          <RouterLink :to="`/announcements/${item.id}`">{{ item.title }}</RouterLink>
+          <span v-if="isScheduled(item)" class="tag">尚未發布</span>
+          <small v-if="wasEdited(item)" class="edited edited--short">(編輯於 {{ rocShortDate(item.modifiedAt) }})</small>
+        </div>
+        <div v-if="currentUser" class="row-actions">
+          <RouterLink class="button button--small button--quiet" :aria-label="`編輯公告：${item.title}`" :to="`/announcements/${item.id}?edit=1`">編輯</RouterLink>
+          <button type="button" class="button button--small button--quiet" :aria-label="`刪除公告：${item.title}`" @click="remove(item)">刪除</button>
+        </div>
+      </li>
+    </ol>
+  </div>
 </template>

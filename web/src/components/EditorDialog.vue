@@ -1,19 +1,13 @@
 <script setup>
 import { useId, useTemplateRef } from 'vue';
-import { rocDateTimeText, wasEdited } from '../format.js';
+import EditorForm from './EditorForm.vue';
 
+// 其餘的屬性與事件都直接交給 EditorForm
+defineOptions({ inheritAttrs: false });
 const props = defineProps({
-  title: { type: String, required: true },
-  submitLabel: { type: String, required: true },
   busy: Boolean,
-  disabled: Boolean,
   dirty: Boolean,
-  wide: Boolean,
-  error: { type: String, default: '' },
-  /** 編輯既有內容時，顯示它的建立與編輯時間 */
-  metaItem: { type: Object, default: null },
 });
-defineEmits(['submit']);
 
 const titleId = useId();
 const dialog = useTemplateRef('dialog');
@@ -31,19 +25,9 @@ defineExpose({
 </script>
 
 <template>
-  <dialog ref="dialog" class="editor" :class="{ 'editor--wide': wide }" :aria-labelledby="titleId" @cancel.prevent="requestClose">
-    <form class="form" @submit.prevent="$emit('submit')">
-      <h2 :id="titleId">{{ title }}</h2>
+  <dialog ref="dialog" class="editor" :aria-labelledby="titleId" @cancel.prevent="requestClose">
+    <EditorForm v-bind="$attrs" heading="h2" :heading-id="titleId" :busy="busy" @cancel="requestClose">
       <slot />
-      <small v-if="metaItem" class="edited">
-        建立於 {{ rocDateTimeText(metaItem.createdAt) }}
-        <template v-if="wasEdited(metaItem)">；上次編輯 {{ rocDateTimeText(metaItem.modifiedAt) }}</template>
-      </small>
-      <p v-if="error" role="alert" class="notice notice--error">{{ error }}</p>
-      <div class="editor__actions">
-        <button type="button" class="button button--quiet" :disabled="busy" @click="requestClose">取消</button>
-        <button type="submit" class="button" :disabled="busy || disabled">{{ busy ? '處理中…' : submitLabel }}</button>
-      </div>
-    </form>
+    </EditorForm>
   </dialog>
 </template>

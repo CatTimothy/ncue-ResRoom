@@ -16,8 +16,8 @@ config({
   editorConfig: { languageUserDefined: { 'zh-TW': ZH_TW } },
   // 沒用到裁切圖片；不指定 instance 的話，套件會從外部 CDN 載入
   editorExtensions: { cropper: { instance: class {} } },
-  // 預覽要和實際顯示一致：內嵌 HTML 不會顯示
-  markdownItConfig: (md) => md.set({ html: false }),
+  // 預覽要和實際顯示一致：內嵌 HTML 不會顯示，單一換行也會換行
+  markdownItConfig: (md) => md.set({ html: false, breaks: true }),
   // 輸入區沒有對應的 label 元素，要另外給名稱，螢幕報讀軟體才知道這是什麼
   codeMirrorExtensions: (extensions) => [
     ...extensions,
@@ -106,12 +106,10 @@ function onDrop(event) {
     </MdEditor>
     <input
       ref="fileInput"
-      class="visually-hidden"
       type="file"
       accept="image/*"
       multiple
-      tabindex="-1"
-      aria-hidden="true"
+      hidden
       @change="onFilesPicked"
     />
     <p class="markdown-editor__status" role="status">

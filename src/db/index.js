@@ -4,6 +4,7 @@ import pg from 'pg';
 import { translateDbError } from './errors.js';
 
 const TIMESTAMPTZ_OID = 1184;
+const DATE_OID = 1082;
 
 const toCamelCase = (key) => key.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
 const camelizeRow = (row) => Object.fromEntries(
@@ -16,6 +17,8 @@ export async function openDb(connectionString) {
   const types = new pg.TypeOverrides();
   const parseTimestamp = types.getTypeParser(TIMESTAMPTZ_OID);
   types.setTypeParser(TIMESTAMPTZ_OID, (value) => parseTimestamp(value).toISOString());
+  // 日期沒有時區，維持 YYYY-MM-DD，轉成 Date 反而會受伺服器時區影響
+  types.setTypeParser(DATE_OID, (value) => value);
 
   const pool = new pg.Pool({ connectionString, types });
   // 閒置連線斷線時 pool 會發出 error；未監聽會讓整個程序結束

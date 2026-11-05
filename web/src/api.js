@@ -94,19 +94,23 @@ const announcementWith = (extra) => (id) => query(
 );
 
 export const fetchAnnouncements = searchList('announcements', ANNOUNCEMENT_FIELDS);
-export const fetchAnnouncement = announcementWith('html');
+const ANNOUNCEMENT_INFO = 'unit deadline contactPerson extension';
+export const fetchAnnouncement = announcementWith(`html ${ANNOUNCEMENT_INFO}`);
 /** 編輯時才需要 Markdown 原文 */
-export const fetchAnnouncementSource = announcementWith('content');
+export const fetchAnnouncementSource = announcementWith(`content ${ANNOUNCEMENT_INFO}`);
 
-export const saveAnnouncement = ({ id = null, title, content, publishedAt }) => mutate(
-  `mutation ($id: ID, $title: String!, $content: String!, $publishedAt: String) {
-    saveAnnouncement(id: $id, title: $title, content: $content, publishedAt: $publishedAt) { id }
+export const saveAnnouncement = ({ id = null, title, content, publishedAt, unit, deadline, contactPerson, extension }) => mutate(
+  `mutation ($id: ID, $title: String!, $content: String!, $publishedAt: String, $unit: String, $deadline: String, $contactPerson: String, $extension: String) {
+    saveAnnouncement(id: $id, title: $title, content: $content, publishedAt: $publishedAt, unit: $unit, deadline: $deadline, contactPerson: $contactPerson, extension: $extension) { id }
   }`,
-  { id, title, content, publishedAt },
+  { id, title, content, publishedAt, unit, deadline, contactPerson, extension },
   id ? '公告已儲存' : '公告已新增',
 );
 
 export const deleteAnnouncement = deleter('deleteAnnouncement', '公告已刪除');
+
+/** 不算內容修改，所以不清除快取；回傳目前的瀏覽人次 */
+export const recordAnnouncementView = (id) => query('mutation ($id: ID!) { recordAnnouncementView(id: $id) }', { id });
 
 // 內文圖片
 export const uploadContentImage = (file) => sendFile(

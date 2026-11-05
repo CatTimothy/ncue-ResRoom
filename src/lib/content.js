@@ -1,4 +1,4 @@
-import { Marked, marked } from 'marked';
+import { Marked } from 'marked';
 import sanitizeHtml from 'sanitize-html';
 
 const { allowedTags, allowedAttributes } = sanitizeHtml.defaults;
@@ -22,11 +22,13 @@ const ANNOUNCEMENT_OPTIONS = {
   allowedSchemesByTag: { img: ['http', 'https'] },
 };
 
+// 單一換行也會換行：學校公告貼上後才會維持原本的分行
+const markdown = new Marked({ breaks: true });
 // 公告只支援 Markdown：直接略過內嵌的 HTML
-const markdownOnly = new Marked({ renderer: { html: () => '' } });
+const markdownOnly = new Marked({ breaks: true, renderer: { html: () => '' } });
 
 export function renderPage({ format, source }) {
-  return sanitizeHtml(format === 'MARKDOWN' ? marked.parse(source) : source, PAGE_OPTIONS);
+  return sanitizeHtml(format === 'MARKDOWN' ? markdown.parse(source) : source, PAGE_OPTIONS);
 }
 
 export function renderAnnouncement({ content }) {
