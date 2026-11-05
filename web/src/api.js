@@ -207,7 +207,7 @@ export const deletePhoto = deleter('deletePhoto', '照片已刪除');
 
 // 頁面
 export const fetchPages = () => query('{ pages { slug title } }');
-export const fetchPage = (slug) => query('query ($slug: String!) { page(slug: $slug) { slug title html } }', { slug });
+export const fetchPage = (slug) => query('query ($slug: String!) { page(slug: $slug) { slug title format html } }', { slug });
 export const fetchPageSource = (slug) => query('query ($slug: String!) { page(slug: $slug) { title source } }', { slug });
 
 export const savePage = ({ slug, title, content }) => mutate(

@@ -1,6 +1,7 @@
 <script setup>
 import { useRouter } from 'vue-router';
-import { can, deletePage, fetchPage } from '../api.js';
+import { can, deletePage, fetchPage, fetchPageSource, savePage } from '../api.js';
+import { replaceImageAlt } from '../articleSegments.js';
 import ArticleBody from '../components/ArticleBody.vue';
 import ItemStatus from '../components/ItemStatus.vue';
 import PageEditor from '../components/PageEditor.vue';
@@ -22,6 +23,12 @@ const state = useCachedItem(
   (page) => page.title,
 );
 const { item, status } = state;
+
+/** 圖片的說明存在內文裡；用 HTML 寫的頁面對不到語法，要到編輯畫面改 */
+async function saveImageAlt(photo, alt) {
+  const { title, source } = await fetchPageSource(props.slug);
+  await savePage({ slug: props.slug, title, content: replaceImageAlt(source, photo, alt) });
+}
 
 const remove = () => confirmDelete(
   `確定要刪除頁面「${item.value.title}」嗎？`,
@@ -58,7 +65,12 @@ const remove = () => confirmDelete(
         </template>
       </ItemStatus>
 
-      <ArticleBody v-if="status === 'ready'" class="article" :html="item.html" />
+      <ArticleBody
+        v-if="status === 'ready'"
+        class="article"
+        :html="item.html"
+        :save-image-alt="can('MANAGE_PAGES') && item.format === 'MARKDOWN' ? saveImageAlt : null"
+      />
     </template>
   </div>
 </template>

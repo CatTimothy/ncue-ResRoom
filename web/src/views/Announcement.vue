@@ -1,7 +1,8 @@
 <script setup>
 import { ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
-import { can, deleteAnnouncement, fetchAnnouncement, recordAnnouncementView } from '../api.js';
+import { can, deleteAnnouncement, fetchAnnouncement, fetchAnnouncementSource, recordAnnouncementView, saveAnnouncement } from '../api.js';
+import { replaceImageAlt } from '../articleSegments.js';
 import AnnouncementEditor from '../components/AnnouncementEditor.vue';
 import ArticleBody from '../components/ArticleBody.vue';
 import ItemStatus from '../components/ItemStatus.vue';
@@ -33,6 +34,12 @@ watch(() => props.id, async (id) => {
     console.error(error); // 沒記到不影響閱讀
   }
 }, { immediate: true });
+
+/** 圖片的說明存在內文裡 */
+async function saveImageAlt(photo, alt) {
+  const announcement = await fetchAnnouncementSource(props.id);
+  await saveAnnouncement({ ...announcement, content: replaceImageAlt(announcement.content, photo, alt) });
+}
 
 const remove = () => confirmDelete(
   deleteQuestion(item.value.title),
@@ -98,7 +105,7 @@ const remove = () => confirmDelete(
         </dl>
 
         <h2 class="announcement__body-title">詳細內容</h2>
-        <ArticleBody :html="item.html" />
+        <ArticleBody :html="item.html" :save-image-alt="can('MANAGE_ANNOUNCEMENTS') ? saveImageAlt : null" />
         <small v-if="wasEdited(item)" class="edited">編輯於 {{ rocDateTimeText(item.modifiedAt) }}</small>
       </article>
     </template>
