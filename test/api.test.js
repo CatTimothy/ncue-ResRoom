@@ -416,6 +416,18 @@ test('guessing the current password is rate limited', async () => {
   assert.equal((await gql(CHANGE_PASSWORD, { c: PASSWORD, n: NEW }, headers)).errors[0].extensions.code, 'TOO_MANY_REQUESTS');
 });
 
+test('new albums default to today in Taiwan, and editing keeps the event date', async () => {
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei' }).format(Date.now());
+  const QUERY = 'query ($id: ID!) { album(id: $id) { eventDate } }';
+  const album = await newAlbum('今天的活動');
+  assert.equal((await gql(QUERY, { id: album.id })).data.album.eventDate, today);
+
+  await gql(SAVE_ALBUM, { id: album.id, name: '改過的名稱', eventDate: '2020-01-02' });
+  await gql(SAVE_ALBUM, { id: album.id, name: '再改一次' });
+  assert.equal((await gql(QUERY, { id: album.id })).data.album.eventDate, '2020-01-02');
+  await gql('mutation ($id: ID!) { deleteAlbum(id: $id) }', { id: album.id });
+});
+
 test('announcements have the expected columns', async () => {
   const columns = await app.db.prepare(`
     SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'announcements' ORDER BY ordinal_position
