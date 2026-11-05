@@ -192,3 +192,19 @@ CREATE TABLE IF NOT EXISTS daily_visits (
   day      DATE PRIMARY KEY,
   visitors INTEGER NOT NULL
 );
+
+-- 全站共用的設定，一個設定一列。value 是 JSON，可以放文字或清單；格式由 src/graphql/site-config.js 檢查
+CREATE TABLE IF NOT EXISTS site_config (
+  key   TEXT PRIMARY KEY,
+  value JSONB NOT NULL
+);
+
+-- 預設值是網站原本的內容；只補上還沒有的設定，已經改過的不會被覆蓋
+INSERT INTO site_config (key, value) VALUES
+  ('footer_title', '"聯絡資源教室"'),
+  ('phone', '"(04)7232105"'),
+  ('extension', '"轉 5552、5556、5557"'),
+  ('hours', '"週一至週五 8:30～17:00"'),
+  ('teachers', '[{"name": "陳縈媺", "email": "chencc@cc.ncue.edu.tw", "extension": "5552"}, {"name": "何宜家", "email": "evea3@cc.ncue.edu.tw", "extension": "5557"}, {"name": "周佳慧", "email": "teresa172@cc.ncue.edu.tw", "extension": "5556"}, {"name": "何佳霖", "email": "annielinn@cc.ncue.edu.tw", "extension": "5556"}]'),
+  ('copyright', '"CatTimothy"')
+ON CONFLICT (key) DO NOTHING;

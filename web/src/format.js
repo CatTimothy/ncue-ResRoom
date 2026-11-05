@@ -133,6 +133,12 @@ export function parseAlbum(name) {
   return { term: `${match[1]} 學年度第 ${match[2]} 學期`, name: match[3] };
 }
 
+/** 電話號碼的 tel: 連結，台灣的區碼 0 換成 +886 */
+export function telHref(phone) {
+  const number = phone.replace(/[^\d+]/g, '');
+  return `tel:${number.replace(/^0/, '+886')}`;
+}
+
 export function fileSizeText(bytes) {
   if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;

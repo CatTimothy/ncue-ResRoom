@@ -260,6 +260,24 @@ h2 {
   width: 100%;
 }
 
+.teacher-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.field .teacher-row input {
+  flex: 1 1 6rem;
+  width: auto;
+  min-width: 0;
+}
+
+.field .teacher-row input[type='email'] {
+  flex: 3 1 13rem;
+}
+
 .field input:disabled {
   background: var(--paper);
 }
@@ -1231,6 +1249,24 @@ h2 {
   padding: 3rem var(--content-right) 3.5rem var(--content-left);
   background: var(--ink);
   color: var(--white);
+}
+
+.site-footer__head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.site-footer .button--quiet {
+  border-color: var(--white);
+  color: var(--white);
+}
+
+.site-footer .button--quiet:hover:not(:disabled) {
+  background: var(--white);
+  color: var(--ink);
 }
 
 .site-footer__title {

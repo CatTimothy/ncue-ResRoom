@@ -2,15 +2,13 @@
 import { computed, useTemplateRef } from 'vue';
 import { useRoute } from 'vue-router';
 import { currentUser, fetchPages, logout, notice } from './api.js';
+import SiteFooter from './components/SiteFooter.vue';
 import UserSettings from './components/UserSettings.vue';
 import { BUILT_IN_PAGES } from './router.js';
 import { useCachedItem } from './useCachedItem.js';
-import { useTodayVisits } from './useTodayVisits.js';
 
 const route = useRoute();
 const settings = useTemplateRef('settings');
-const visitors = useTodayVisits();
-const year = new Date().getFullYear();
 
 // 管理員另外新增的頁面接在主選單後面
 const { item: pages } = useCachedItem(() => 'pages', fetchPages);
@@ -68,30 +66,7 @@ async function signOut() {
     <RouterView />
   </main>
 
-  <footer class="site-footer">
-    <h2 class="site-footer__title">聯絡資源教室</h2>
-    <p class="site-footer__phone">
-      <a href="tel:+88647232105">(04)7232105</a>
-      <span>轉 5552、5557</span>
-    </p>
-    <dl>
-      <div>
-        <dt>開放時間</dt>
-        <dd>週一至週五 8:30～17:00</dd>
-      </div>
-      <div>
-        <dt>電子郵件</dt>
-        <dd>
-          <a href="mailto:chencc@cc.ncue.edu.tw">chencc@cc.ncue.edu.tw</a><br />
-          <a href="mailto:evea3@cc.ncue.edu.tw">evea3@cc.ncue.edu.tw</a>
-        </dd>
-      </div>
-    </dl>
-    <div class="site-footer__bottom">
-      <small>Copyright © {{ year }} 國立彰化師範大學資源教室</small>
-      <small v-if="visitors !== null">今日訪問人數：{{ visitors }}</small>
-    </div>
-  </footer>
+  <SiteFooter />
   <UserSettings v-if="currentUser" ref="settings" />
 
   <p class="toast" :class="{ 'is-visible': notice }" role="status">{{ notice }}</p>

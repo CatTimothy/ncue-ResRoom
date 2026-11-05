@@ -118,6 +118,19 @@ export const recordAnnouncementView = (id) => query('mutation ($id: ID!) { recor
 export const fetchTodayVisits = () => query('{ todayVisits }');
 export const recordVisit = () => query('mutation { recordVisit }');
 
+// 全站設定
+const SITE_CONFIG_FIELDS = 'footerTitle phone extension hours teachers { name email extension } copyright';
+
+export const fetchSiteConfig = () => query(`{ siteConfig { ${SITE_CONFIG_FIELDS} } }`);
+
+export const saveSiteConfig = ({ footerTitle, phone, extension, hours, teachers, copyright }) => mutate(
+  `mutation ($footerTitle: String!, $phone: String!, $extension: String!, $hours: String!, $teachers: [TeacherInput!]!, $copyright: String!) {
+    saveSiteConfig(footerTitle: $footerTitle, phone: $phone, extension: $extension, hours: $hours, teachers: $teachers, copyright: $copyright) { footerTitle }
+  }`,
+  { footerTitle, phone, extension, hours, teachers, copyright },
+  '頁尾已儲存',
+);
+
 // 內文圖片
 export const uploadContentImage = (file) => sendFile(
   'mutation ($file: File!) { uploadContentImage(file: $file) { url name } }',

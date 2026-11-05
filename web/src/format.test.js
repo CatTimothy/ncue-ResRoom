@@ -1,11 +1,17 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { fileBaseName, fileSizeText, fromLocalInput, fromRocInput, groupByYear, monthDayText, isScheduled, parseAlbum, rocDate, rocDateText, rocDateTimeText, rocShortDate, savedTimeText, taipeiDay, toLocalInput, toRocInput, wasEdited } from './format.js';
+import { fileBaseName, fileSizeText, fromLocalInput, fromRocInput, groupByYear, monthDayText, isScheduled, parseAlbum, rocDate, rocDateText, rocDateTimeText, rocShortDate, savedTimeText, taipeiDay, telHref, toLocalInput, toRocInput, wasEdited } from './format.js';
 
 test('民國日期以台灣時區計算', () => {
   // UTC 11 月 3 日 16:30 在台灣已是 11 月 4 日
   assert.deepEqual(rocDate('2026-11-03T16:30:00Z'), { year: 115, month: 11, day: 4 });
   assert.equal(rocDateText('2026-11-03T16:30:00Z'), '民國 115 年 11 月 4 日');
+});
+
+test('電話號碼轉成 tel: 連結', () => {
+  assert.equal(telHref('(04)7232105'), 'tel:+88647232105');
+  assert.equal(telHref('04-723 2105'), 'tel:+88647232105');
+  assert.equal(telHref('+886 4 7232105'), 'tel:+88647232105');
 });
 
 test('時間以台灣時區顯示', () => {

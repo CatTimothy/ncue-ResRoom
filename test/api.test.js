@@ -195,6 +195,7 @@ test('users never expose the password hash', async () => {
   assert.deepEqual(columns.map((c) => c.columnName), ['username', 'password_hash', 'permissions']);
 });
 
+const SAVE_CONFIG_FROM_CURRENT = 'mutation { saveSiteConfig(footerTitle: "標題", phone: "(04)1234567", extension: "", hours: "", teachers: [{ name: "x", email: "bad", extension: "" }], copyright: "資源教室") { phone } }';
 const CREATE_USER = 'mutation ($u: String!, $p: String!, $r: [Permission!]!) { createUser(username: $u, password: $p, permissions: $r) { username permissions } }';
 const SET_PERMISSIONS = 'mutation ($u: String!, $r: [Permission!]!) { setUserPermissions(username: $u, permissions: $r) { username permissions } }';
 const CHANGE_PASSWORD = 'mutation ($c: String!, $n: String!) { changePassword(currentPassword: $c, newPassword: $n) }';
@@ -232,7 +233,7 @@ test('each permission only allows its own operations', async () => {
     MANAGE_ALBUMS: ['mutation { saveAlbum(name: "相簿") { id } }', 'mutation { deleteAlbum(id: "0") }', 'mutation { deletePhoto(id: "0") }'],
     MANAGE_DOCUMENTS: ['mutation { deleteDocument(id: "0") }'],
     MANAGE_PAGES: ['mutation { savePage(slug: "perm-test", title: "t", format: MARKDOWN, content: "c") { slug } }', 'mutation { deletePage(slug: "perm-test") }'],
-    MANAGE_SITE_CONFIG: [],
+    MANAGE_SITE_CONFIG: [SAVE_CONFIG_FROM_CURRENT],
     MANAGE_USERS: ['{ users { username } }', 'mutation { createUser(username: "perm.test", password: "perm-password-123", permissions: []) { username } }', 'mutation { setUserPermissions(username: "nobody.here", permissions: []) { username } }'],
   };
   assert.deepEqual(Object.keys(OPERATIONS), ALL_PERMISSIONS);
@@ -594,6 +595,79 @@ test('pages reject bad input', async () => {
   assert.match((await gql(SAVE_PAGE, { slug: 'a', title: 't', content: 'x' })).errors[0].message, /format/);
   assert.match((await gql(SAVE_PAGE, { slug: '../x', title: 't', content: 'x', format: 'HTML' })).errors[0].message, /slug/);
   assert.match((await uploadJson(SAVE_PAGE, { slug: 'a', title: 't' }, 'x', 'p.exe')).errors[0].message, /\.md/);
+});
+
+const SAVE_CONFIG = `mutation ($footerTitle: String!, $phone: String!, $extension: String!, $hours: String!, $teachers: [TeacherInput!]!, $copyright: String!) {
+  saveSiteConfig(footerTitle: $footerTitle, phone: $phone, extension: $extension, hours: $hours, teachers: $teachers, copyright: $copyright) { footerTitle phone extension hours teachers { name email extension } copyright }
+}`;
+const CONFIG = { footerTitle: '聯絡我們', phone: '(04)1234567', extension: '', hours: '', teachers: [], copyright: '資源教室' };
+
+test('site config starts with the original content and only logged-in users can edit it', async () => {
+  const QUERY = '{ siteConfig { footerTitle phone extension hours teachers { name email extension } copyright } }';
+  assert.deepEqual((await gql(QUERY, {}, {})).data.siteConfig, {
+    footerTitle: '聯絡資源教室',
+    phone: '(04)7232105',
+    extension: '轉 5552、5556、5557',
+    hours: '週一至週五 8:30～17:00',
+    teachers: [
+      { name: '陳縈媺', email: 'chencc@cc.ncue.edu.tw', extension: '5552' },
+      { name: '何宜家', email: 'evea3@cc.ncue.edu.tw', extension: '5557' },
+      { name: '周佳慧', email: 'teresa172@cc.ncue.edu.tw', extension: '5556' },
+      { name: '何佳霖', email: 'annielinn@cc.ncue.edu.tw', extension: '5556' },
+    ],
+    copyright: 'CatTimothy',
+  });
+
+  assert.equal((await gql(SAVE_CONFIG, CONFIG, {})).errors[0].extensions.code, 'UNAUTHENTICATED');
+
+  const saved = { ...CONFIG, footerTitle: ' 聯絡我們 ', teachers: [{ name: ' 王小明 ', email: ' a@example.com ', extension: ' 1234 ' }, { name: '資源教室', email: 'b@example.com', extension: '' }] };
+  const expected = { ...CONFIG, teachers: [{ name: '王小明', email: 'a@example.com', extension: '1234' }, { name: '資源教室', email: 'b@example.com', extension: '' }] };
+  assert.deepEqual((await gql(SAVE_CONFIG, saved)).data.saveSiteConfig, expected);
+  assert.deepEqual((await gql(QUERY, {}, {})).data.siteConfig, expected);
+});
+
+test('site config stores one setting per row, keeps saved values across restarts, and restores missing settings', async () => {
+  const database = await createDatabase();
+  try {
+    let db = await openDb(database.url);
+    const rows = await db.prepare('SELECT key, value FROM site_config ORDER BY key').all();
+    assert.deepEqual(rows.map((row) => row.key), ['copyright', 'extension', 'footer_title', 'hours', 'phone', 'teachers']);
+    assert.equal(rows.find((row) => row.key === 'phone').value, '(04)7232105');
+    assert.equal(rows.find((row) => row.key === 'teachers').value.length, 4);
+
+    await db.prepare("UPDATE site_config SET value = '\"(04)1111111\"' WHERE key = 'phone'").run();
+    await db.prepare("DELETE FROM site_config WHERE key = 'hours'").run();
+    await db.close();
+
+    db = await openDb(database.url);
+    const again = await db.prepare('SELECT key, value FROM site_config').all();
+    assert.equal(again.find((row) => row.key === 'phone').value, '(04)1111111');
+    assert.equal(again.find((row) => row.key === 'hours').value, '週一至週五 8:30～17:00');
+    await db.close();
+  } finally {
+    await dropDatabase(database.name);
+  }
+});
+
+test('site config rejects bad input', async () => {
+  const rejects = async (change, message) => assert.match(
+    (await gql(SAVE_CONFIG, { ...CONFIG, ...change })).errors[0].message,
+    message,
+  );
+  await rejects({ footerTitle: '  ' }, /標題/);
+  await rejects({ phone: 'javascript:alert(1)' }, /電話/);
+  await rejects({ phone: '()' }, /電話/);
+  await rejects({ phone: '1'.repeat(51) }, /電話/);
+  await rejects({ footerTitle: 'x'.repeat(101) }, /標題/);
+  await rejects({ extension: 'x'.repeat(101) }, /分機/);
+  await rejects({ hours: 'x'.repeat(201) }, /開放時間/);
+  await rejects({ copyright: 'x'.repeat(101) }, /版權/);
+  await rejects({ copyright: '' }, /版權/);
+  const teacher = { name: '王小明', email: 'a@example.com', extension: '' };
+  await rejects({ teachers: [{ ...teacher, email: 'not-an-email' }] }, /not-an-email/);
+  await rejects({ teachers: [{ ...teacher, name: '  ' }] }, /姓名/);
+  await rejects({ teachers: [{ ...teacher, extension: '1'.repeat(51) }] }, /分機/);
+  await rejects({ teachers: Array(11).fill(teacher) }, /最多/);
 });
 
 test('photo upload, serving, filter and delete', async () => {
