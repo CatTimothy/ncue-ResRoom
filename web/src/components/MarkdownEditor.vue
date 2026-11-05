@@ -86,6 +86,7 @@ function onDrop(event) {
       :toolbars="toolbars"
       :footers="[]"
       :preview="false"
+      :scroll-auto="false"
       :disabled="disabled"
       no-echarts
       no-mermaid

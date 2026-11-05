@@ -307,9 +307,44 @@ h2 {
 .markdown-editor .md-editor {
   --md-color: var(--ink);
   --md-bk-color: var(--white);
-  height: 24rem;
+  height: auto;
+  /* 套件預設是 hidden，會讓工具列無法黏在視窗上方；clip 一樣能裁出圓角 */
+  overflow: clip;
   border: 2px solid var(--ink);
   border-radius: 0.5rem;
+}
+
+/* 高度跟著內容增加，整份內容都攤開，不用在編輯器裡捲動；內容很少時仍保留書寫的空間 */
+.markdown-editor .md-editor-content {
+  flex: 1 0 auto;
+  height: auto;
+}
+
+.markdown-editor :is(.md-editor-input-wrapper, .md-editor-preview-wrapper, .cm-editor) {
+  height: auto;
+}
+
+.markdown-editor .md-editor-preview-wrapper {
+  overflow: visible;
+}
+
+.markdown-editor .cm-scroller {
+  min-height: 21rem;
+  overflow-y: visible;
+}
+
+/* 內容變長後，捲到下面時工具列仍要按得到。
+   下拉選單在工具列裡面，所以工具列不能裁切內容；窄螢幕改用換行，不用橫向捲動 */
+.markdown-editor .md-editor-toolbar-wrapper {
+  position: sticky;
+  z-index: 1;
+  top: 0;
+  overflow: visible;
+  background: var(--md-bk-color);
+}
+
+.markdown-editor :is(.md-editor-toolbar, .md-editor-toolbar-left) {
+  flex-wrap: wrap;
 }
 
 .markdown-editor__add-image {
