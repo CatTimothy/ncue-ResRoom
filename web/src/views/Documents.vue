@@ -3,22 +3,14 @@ import { computed, useTemplateRef } from 'vue';
 import { can, deleteDocument, fetchDocuments } from '../api.js';
 import DocumentEditor from '../components/DocumentEditor.vue';
 import ListStatus from '../components/ListStatus.vue';
-import { deleteQuestion, fileSizeText } from '../format.js';
+import { deleteQuestion, fileSizeText, groupDocuments } from '../format.js';
 import { confirmDelete } from '../page.js';
 import { usePagedList } from '../usePagedList.js';
 
 const editor = useTemplateRef('editor');
 const list = usePagedList(() => 'documents', fetchDocuments, 50);
 
-const groups = computed(() => {
-  const byCategory = new Map();
-  for (const document of list.items.value) {
-    const name = document.category ?? '其他文件';
-    if (!byCategory.has(name)) byCategory.set(name, []);
-    byCategory.get(name).push(document);
-  }
-  return [...byCategory];
-});
+const groups = computed(() => groupDocuments(list.items.value));
 
 const remove = (item) => confirmDelete(deleteQuestion(item.title), () => deleteDocument(item.id));
 </script>

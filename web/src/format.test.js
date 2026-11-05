@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { fileBaseName, fileSizeText, markdownLink, fromLocalInput, fromRocInput, groupByYear, monthDayText, isScheduled, parseAlbum, rocDate, rocDateText, rocDateTimeText, rocShortDate, savedTimeText, taipeiDay, telHref, toLocalInput, toRocInput, wasEdited } from './format.js';
+import { fileBaseName, fileSizeText, groupDocuments, markdownLink, fromLocalInput, fromRocInput, groupByYear, monthDayText, isScheduled, parseAlbum, rocDate, rocDateText, rocDateTimeText, rocShortDate, savedTimeText, taipeiDay, telHref, toLocalInput, toRocInput, wasEdited } from './format.js';
 
 test('民國日期以台灣時區計算', () => {
   // UTC 11 月 3 日 16:30 在台灣已是 11 月 4 日
@@ -11,6 +11,21 @@ test('民國日期以台灣時區計算', () => {
 test('Markdown 連結會跳脫文字裡的方括號', () => {
   assert.equal(markdownLink('報名表', '/files/a.pdf'), '[報名表](/files/a.pdf)');
   assert.equal(markdownLink('[115] 報名表', '/files/a.pdf'), String.raw`[\[115\] 報名表](/files/a.pdf)`);
+});
+
+test('文件依分類分組，其他文件固定在最後', () => {
+  const documents = [
+    { id: 4, category: null },
+    { id: 3, category: '115學年度' },
+    { id: 2, category: '其他文件' },
+    { id: 1, category: '114學年度' },
+  ];
+  assert.deepEqual(
+    groupDocuments(documents).map(([name, items]) => [name, items.map((item) => item.id)]),
+    [['115學年度', [3]], ['114學年度', [1]], ['其他文件', [4, 2]]],
+  );
+  assert.deepEqual(groupDocuments([{ id: 1, category: 'A' }]).map(([name]) => name), ['A']);
+  assert.deepEqual(groupDocuments([]), []);
 });
 
 test('電話號碼轉成 tel: 連結', () => {

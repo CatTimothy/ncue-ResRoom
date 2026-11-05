@@ -65,6 +65,24 @@ export function rocShortDate(iso) {
 /** 台灣時區的今天，例如「2026-11-04」 */
 export const taipeiDay = (time = Date.now()) => dayFormat.format(time);
 
+/** 依分類分組，回傳 [分類, 文件清單]；分類維持原本的順序，沒有分類的「其他文件」固定在最後 */
+export function groupDocuments(documents) {
+  const OTHER = '其他文件';
+  const byCategory = new Map();
+  for (const document of documents) {
+    const name = document.category ?? OTHER;
+    if (!byCategory.has(name)) byCategory.set(name, []);
+    byCategory.get(name).push(document);
+  }
+  // Map 依加入順序排列，刪掉再加回去就會排到最後
+  const others = byCategory.get(OTHER);
+  if (others) {
+    byCategory.delete(OTHER);
+    byCategory.set(OTHER, others);
+  }
+  return [...byCategory];
+}
+
 /** 文件上傳接受的副檔名，要和伺服器的限制一致 */
 export const DOCUMENT_ACCEPT = '.pdf,.doc,.docx,.odt,.xls,.xlsx,.ods,.ppt,.pptx,.odp,.txt';
 
