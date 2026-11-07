@@ -3,16 +3,46 @@
   長條磚（引導線）表示「往前走」，點狀磚（站點）表示「注意，到了」。
   黃與藍是多數色覺障礙者仍能清楚分辨的組合。
 */
-:root {
-  --paper: #f1f3ee;
-  --white: #fff;
-  --ink: #141b5c;
-  --ink-soft: #444c80;
-  --blue: #2433c9;
-  --yellow: #ffce00;
-  --yellow-deep: #e3b100;
-  --line: #c6cad6;
+
+/*
+  主題顏色。background、surface、text、primary、accent 可在網站設定修改（由 src/theme.js 寫在 html 的 style 上），
+  其他顏色由它們算出來。[data-theme] 也用在網站設定讀取內建顏色，所以兩個主題都要寫完整
+*/
+:root,
+[data-theme='light'] {
+  color-scheme: light;
+  --background: #f1f3ee;
+  --surface: #ffffff;
+  --text: #141b5c;
+  --primary: #2433c9;
+  --accent: #ffce00;
   --error: #a8122a;
+  /* 黃色上的文字 */
+  --on-accent: var(--text);
+  /* 頁尾、燈箱等深色區塊 */
+  --inverse-bg: var(--text);
+  --inverse-text: var(--surface);
+}
+
+[data-theme='dark'] {
+  color-scheme: dark;
+  --background: #0f1433;
+  --surface: #1a2050;
+  --text: #eef0fa;
+  --primary: #a3b1ff;
+  --accent: #ffce00;
+  --error: #ff8a9b;
+  --on-accent: var(--background);
+  --inverse-bg: color-mix(in srgb, var(--background) 55%, #000);
+  --inverse-text: var(--text);
+}
+
+:root {
+  --text-soft: color-mix(in srgb, var(--text) 72%, var(--background));
+  --line: color-mix(in srgb, var(--text) 22%, var(--background));
+  --accent-deep: color-mix(in srgb, var(--accent) 88%, #000);
+  /* 以文字色為底的按鈕上的字 */
+  --on-text: var(--surface);
 
   --display: 'Huninn', 'Microsoft JhengHei', 'PingFang TC', sans-serif;
   --body: 'Microsoft JhengHei', 'PingFang TC', 'Noto Sans TC', 'Noto Sans CJK TC', sans-serif;
@@ -49,8 +79,8 @@ html {
 
 body {
   margin: 0;
-  background: var(--paper);
-  color: var(--ink);
+  background: var(--background);
+  color: var(--text);
   font-family: var(--body);
   font-size: 1.125rem;
   line-height: 1.8;
@@ -78,7 +108,7 @@ img {
 }
 
 a {
-  color: var(--blue);
+  color: var(--primary);
   text-decoration-thickness: 1px;
   text-underline-offset: 0.22em;
 }
@@ -89,9 +119,9 @@ a:hover {
 
 /* 雙色外框：在黃、白、深藍底色和照片上都看得到 */
 :focus-visible {
-  outline: 3px solid var(--ink);
+  outline: 3px solid var(--text);
   outline-offset: 2px;
-  box-shadow: 0 0 0 7px var(--white);
+  box-shadow: 0 0 0 7px var(--surface);
 }
 
 h1,
@@ -120,8 +150,8 @@ h2 {
   z-index: 10;
   padding: 0.5rem 1rem;
   border-radius: 0.5rem;
-  background: var(--ink);
-  color: var(--white);
+  background: var(--text);
+  color: var(--on-text);
   transform: translateY(-200%);
 }
 
@@ -134,14 +164,15 @@ h2 {
   padding: 0.25rem 1.5rem;
   border: 0;
   border-radius: 1.5rem;
-  background: var(--ink);
-  color: var(--white);
+  background: var(--text);
+  color: var(--on-text);
   font: inherit;
   cursor: pointer;
 }
 
 .button:hover:not(:disabled) {
-  background: var(--blue);
+  background: var(--primary);
+  color: var(--surface);
 }
 
 .button:disabled {
@@ -156,14 +187,14 @@ h2 {
 }
 
 .button--quiet {
-  border: 2px solid var(--ink);
+  border: 2px solid var(--text);
   background: transparent;
-  color: var(--ink);
+  color: var(--text);
 }
 
 .button--quiet:hover:not(:disabled) {
-  background: var(--ink);
-  color: var(--white);
+  background: var(--text);
+  color: var(--on-text);
 }
 
 /* 登入後才出現的新增按鈕，放在清單右上方 */
@@ -239,7 +270,7 @@ h2 {
 
 .field small,
 .upload-list__hint {
-  color: var(--ink-soft);
+  color: var(--text-soft);
   font-size: 0.9375rem;
   line-height: 1.6;
 }
@@ -248,10 +279,10 @@ h2 {
 .search-bar input {
   min-height: 3rem;
   padding: 0.5rem 0.75rem;
-  border: 2px solid var(--ink);
+  border: 2px solid var(--text);
   border-radius: 0.5rem;
-  background: var(--white);
-  color: var(--ink);
+  background: var(--surface);
+  color: var(--text);
   font: inherit;
   line-height: 1.6;
 }
@@ -279,16 +310,102 @@ h2 {
 }
 
 .field input:disabled {
-  background: var(--paper);
+  background: var(--background);
 }
 
 .form > .button {
   justify-self: start;
 }
 
+/* 網站設定 */
+.settings-group {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.25rem;
+  margin: 0;
+  padding: 1.5rem 0 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+}
+
+.settings-group legend {
+  padding: 0;
+  font-family: var(--display);
+  font-size: 1.5rem;
+}
+
+.image-field__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1rem;
+  align-items: center;
+}
+
+/* 標誌常是透明背景，放在頁首的黃色上預覽 */
+.image-field__preview {
+  max-width: 14rem;
+  max-height: 6rem;
+  padding: 0.5rem;
+  border-radius: 0.5rem;
+  background: var(--accent);
+}
+
+.image-field__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+}
+
+.color-field {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  cursor: pointer;
+}
+
+.field .color-field input {
+  width: 3rem;
+  min-height: 2.25rem;
+  padding: 0.125rem;
+}
+
 /* 直接在頁面上編輯文章 */
 .form--page {
   max-width: 64rem;
+}
+
+.format-choice {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1.5rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.format-choice legend {
+  margin-bottom: 0.25rem;
+  padding: 0;
+  font-weight: 600;
+}
+
+.format-choice label {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  cursor: pointer;
+}
+
+.html-input {
+  width: 100%;
+  min-height: 21rem;
+  padding: 0.75rem;
+  border: 2px solid var(--text);
+  border-radius: 0.5rem;
+  background: var(--surface);
+  color: var(--text);
+  font: 0.9375rem / 1.6 ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  resize: vertical;
 }
 
 .field-row {
@@ -309,8 +426,8 @@ h2 {
   padding: 1.5rem;
   border: 0;
   border-radius: 1rem;
-  background: var(--white);
-  color: var(--ink);
+  background: var(--surface);
+  color: var(--text);
 }
 
 .user-settings__head {
@@ -352,11 +469,11 @@ h2 {
 .permission-checks input {
   width: 1.25rem;
   height: 1.25rem;
-  accent-color: var(--ink);
+  accent-color: var(--text);
 }
 
 .editor::backdrop {
-  background: rgb(20 27 92 / 0.7);
+  background: color-mix(in srgb, var(--inverse-bg) 70%, transparent);
 }
 
 .editor .form {
@@ -365,12 +482,12 @@ h2 {
 
 /* Markdown 編輯器 */
 .markdown-editor .md-editor {
-  --md-color: var(--ink);
-  --md-bk-color: var(--white);
+  --md-color: var(--text);
+  --md-bk-color: var(--surface);
   height: auto;
   /* 套件預設是 hidden，會讓工具列無法黏在視窗上方；clip 一樣能裁出圓角 */
   overflow: clip;
-  border: 2px solid var(--ink);
+  border: 2px solid var(--text);
   border-radius: 0.5rem;
 }
 
@@ -421,7 +538,7 @@ h2 {
 }
 
 .markdown-editor .cm-dropCursor {
-  border-left: 2px solid var(--ink);
+  border-left: 2px solid var(--text);
 }
 
 .markdown-editor__tool {
@@ -432,7 +549,7 @@ h2 {
 
 .markdown-editor__status {
   margin: 0.25rem 0 0;
-  color: var(--ink-soft);
+  color: var(--text-soft);
   font-size: 0.9375rem;
 }
 
@@ -491,7 +608,7 @@ h2 {
   display: block;
   width: 100%;
   height: 0.75rem;
-  accent-color: var(--blue);
+  accent-color: var(--primary);
 }
 
 /* 操作結果 */
@@ -503,11 +620,11 @@ h2 {
   margin: 0;
   padding: 0.5rem 1.25rem;
   border-radius: 1.5rem;
-  background: var(--ink);
-  color: var(--white);
+  background: var(--text);
+  color: var(--on-text);
   opacity: 0;
   pointer-events: none;
-  outline: 2px solid var(--yellow);
+  outline: 2px solid var(--accent);
 }
 
 .toast.is-visible {
@@ -517,7 +634,7 @@ h2 {
 /* 引導線：黃色是整條路，藍色是目前走到的位置 */
 .path,
 .path__fill {
-  background: var(--yellow-deep);
+  background: var(--accent-deep);
   -webkit-mask: var(--bars) top / 100% auto repeat-y;
   mask: var(--bars) top / 100% auto repeat-y;
 }
@@ -531,7 +648,7 @@ h2 {
 .path__fill {
   position: absolute;
   inset: 0;
-  background: var(--blue);
+  background: var(--primary);
   clip-path: inset(0 0 100% 0);
 }
 
@@ -547,8 +664,8 @@ h2 {
   width: var(--rail-width);
   height: var(--rail-width);
   border-radius: 0.25rem;
-  background: var(--yellow) var(--dots) center / 100% no-repeat;
-  box-shadow: 0 0 0 0.3rem var(--paper);
+  background: var(--accent) var(--dots) center / 100% no-repeat;
+  box-shadow: 0 0 0 0.3rem var(--background);
   content: '';
 }
 
@@ -562,7 +679,8 @@ h2 {
   justify-content: space-between;
   gap: 0.5rem 2rem;
   padding: 1.25rem var(--content-right) 1rem var(--content-left);
-  background: var(--yellow);
+  background: var(--accent);
+  color: var(--on-accent);
 }
 
 .wordmark {
@@ -570,7 +688,7 @@ h2 {
   flex-wrap: wrap;
   gap: 0.25rem 1rem;
   align-items: center;
-  color: var(--ink);
+  color: inherit;
   line-height: 1.25;
   text-decoration: none;
 }
@@ -582,7 +700,7 @@ h2 {
 
 .wordmark__unit {
   padding-left: 1rem;
-  border-left: 2px solid var(--ink);
+  border-left: 2px solid currentcolor;
   font-family: var(--display);
   font-size: 1.5rem;
 }
@@ -615,7 +733,7 @@ h2 {
 .site-header nav a {
   padding: 0.25rem 0.75rem;
   border-radius: 1.5rem;
-  color: var(--ink);
+  color: inherit;
   text-decoration: none;
 }
 
@@ -633,8 +751,18 @@ h2 {
 }
 
 .site-header nav a.is-current {
-  background: var(--ink);
-  color: var(--white);
+  background: var(--on-accent);
+  color: var(--accent);
+}
+
+.site-header .button--quiet {
+  border-color: var(--on-accent);
+  color: var(--on-accent);
+}
+
+.site-header .button--quiet:hover:not(:disabled) {
+  background: var(--on-accent);
+  color: var(--accent);
 }
 
 .admin-status {
@@ -643,12 +771,12 @@ h2 {
 
 .site-header nav a.login-link {
   margin-left: 0.5rem;
-  border: 2px solid var(--ink);
+  border: 2px solid currentcolor;
 }
 
 .site-header nav a.login-link:hover {
-  background: var(--ink);
-  color: var(--white);
+  background: var(--on-accent);
+  color: var(--accent);
   text-decoration: none;
 }
 
@@ -673,7 +801,8 @@ h2 {
   align-items: center;
   overflow: hidden;
   padding: clamp(1.5rem, 4vw, 3rem) var(--content-right) 4rem var(--content-left);
-  background: var(--yellow);
+  background: var(--accent);
+  color: var(--on-accent);
 }
 
 .hero__school {
@@ -686,7 +815,9 @@ h2 {
   margin-left: -0.04em;
   font-size: clamp(4.25rem, 9.5vw, 8rem);
   line-height: 1.15;
-  white-space: nowrap;
+  /* 中文字之間不換行；標題太長放不下時才換行 */
+  word-break: keep-all;
+  overflow-wrap: anywhere;
 }
 
 .hero__hours {
@@ -722,7 +853,7 @@ h2 {
   height: 1.25rem;
   margin: 0.625rem;
   border-radius: 50%;
-  background: var(--yellow-deep);
+  background: var(--accent-deep);
 }
 
 @media (max-width: 56rem) {
@@ -792,7 +923,7 @@ h2 {
 
 .notice {
   padding-left: 0.875rem;
-  border-left: 0.3rem solid var(--yellow-deep);
+  border-left: 0.3rem solid var(--accent-deep);
 }
 
 .notice--error {
@@ -810,7 +941,7 @@ h2 {
 .announcement-year {
   --year-line: 3px;
   padding-left: 0.75rem;
-  border-left: var(--year-line) solid var(--blue);
+  border-left: var(--year-line) solid var(--primary);
 }
 
 .announcement-year + .announcement-year {
@@ -834,7 +965,7 @@ h2 {
   margin-inline: -0.75rem;
   padding: 1rem 0.75rem;
   border-top: 1px solid var(--line);
-  background: linear-gradient(var(--yellow), var(--yellow)) left / 0 100% no-repeat;
+  background: linear-gradient(var(--accent), var(--accent)) left / 0 100% no-repeat;
 }
 
 .announcement-list.has-actions li {
@@ -843,7 +974,7 @@ h2 {
 
 .edited {
   display: block;
-  color: var(--ink-soft);
+  color: var(--text-soft);
   font-size: 0.875rem;
   line-height: 1.6;
 }
@@ -856,7 +987,7 @@ h2 {
   display: inline-block;
   margin-left: 0.5rem;
   padding: 0 0.5rem;
-  border: 1px solid var(--ink);
+  border: 1px solid currentcolor;
   border-radius: 0.25rem;
   font-size: 0.8125rem;
   vertical-align: middle;
@@ -866,6 +997,11 @@ h2 {
 .announcement-list li:hover,
 .announcement-list li:focus-within {
   background-size: 100% 100%;
+  color: var(--on-accent);
+}
+
+.announcement-list li:is(:hover, :focus-within) .edited {
+  color: inherit;
 }
 
 .announcement-list li::before {
@@ -876,8 +1012,8 @@ h2 {
   width: 0.75rem;
   height: 0.75rem;
   border-radius: 50%;
-  background: var(--blue);
-  box-shadow: 0 0 0 0.2rem var(--paper);
+  background: var(--primary);
+  box-shadow: 0 0 0 0.2rem var(--background);
   content: '';
 }
 
@@ -889,7 +1025,7 @@ h2 {
 }
 
 .announcement-list a {
-  color: var(--ink);
+  color: inherit;
   font-size: 1.25rem;
   line-height: 1.6;
   overflow-wrap: anywhere;
@@ -938,7 +1074,7 @@ h2 {
 
 .article__date {
   margin: 0.5rem 0 0;
-  color: var(--ink-soft);
+  color: var(--text-soft);
 }
 
 .article > .edited {
@@ -995,19 +1131,19 @@ h2 {
   overflow-x: auto;
   padding: 1rem;
   border-radius: 0.5rem;
-  background: var(--white);
+  background: var(--surface);
 }
 
 .article__body blockquote {
   margin-inline: 0;
   padding-left: 1rem;
-  border-left: 0.3rem solid var(--yellow-deep);
+  border-left: 0.3rem solid var(--accent-deep);
 }
 
 /* 公告資訊 */
 .announcement__label {
   margin: 0 0 0.25rem;
-  color: var(--ink-soft);
+  color: var(--text-soft);
   font-size: 0.9375rem;
 }
 
@@ -1017,7 +1153,7 @@ h2 {
   margin: 1.5rem 0 0;
   border-top: 1px solid var(--line);
   border-left: 1px solid var(--line);
-  background: var(--white);
+  background: var(--surface);
 }
 
 .announcement-info > div {
@@ -1029,8 +1165,8 @@ h2 {
 
 .announcement-info dt {
   padding: 0.5rem 0.75rem;
-  background: var(--paper);
-  color: var(--ink-soft);
+  background: var(--background);
+  color: var(--text-soft);
   font-size: 0.9375rem;
 }
 
@@ -1099,7 +1235,7 @@ h2 {
   place-items: center;
   border-radius: 0.75rem;
   background: var(--line);
-  color: var(--ink-soft);
+  color: var(--text-soft);
 }
 
 .album-card__cover img {
@@ -1118,7 +1254,7 @@ h2 {
 
 .album-card__meta {
   margin: 0.125rem 0 0;
-  color: var(--ink-soft);
+  color: var(--text-soft);
   font-size: 0.9375rem;
 }
 
@@ -1127,7 +1263,8 @@ h2 {
   margin: 0 0 0.5rem;
   padding: 0 0.75rem;
   border-radius: 1rem;
-  background: var(--yellow);
+  background: var(--accent);
+  color: var(--on-accent);
   font-size: 0.9375rem;
 }
 
@@ -1167,7 +1304,7 @@ h2 {
 }
 
 .photo-grid__open:hover {
-  box-shadow: 0.4rem 0.4rem 0 var(--yellow-deep);
+  box-shadow: 0.4rem 0.4rem 0 var(--accent-deep);
   transform: translate(-0.2rem, -0.2rem);
 }
 
@@ -1202,8 +1339,8 @@ h2 {
   margin: 0;
   padding: 1rem;
   border: 0;
-  background: var(--ink);
-  color: var(--white);
+  background: var(--inverse-bg);
+  color: var(--inverse-text);
 }
 
 .lightbox[open] {
@@ -1260,7 +1397,7 @@ h2 {
 }
 
 .lightbox__alt:hover {
-  color: var(--yellow);
+  color: var(--accent);
 }
 
 .lightbox__alt-form {
@@ -1276,22 +1413,22 @@ h2 {
   min-width: 0;
   min-height: 2.5rem;
   padding: 0.25rem 0.75rem;
-  border: 2px solid var(--yellow);
+  border: 2px solid var(--accent);
   border-radius: 0.5rem;
-  background: var(--white);
-  color: var(--ink);
+  background: var(--surface);
+  color: var(--text);
   font: inherit;
 }
 
 .lightbox__alt-error {
   flex-basis: 100%;
   margin: 0;
-  color: var(--yellow);
+  color: var(--accent);
 }
 
 .lightbox__count {
   display: block;
-  color: var(--yellow);
+  color: var(--accent);
   font-size: 0.9375rem;
 }
 
@@ -1302,18 +1439,19 @@ h2 {
 }
 
 .lightbox .button {
-  background: var(--yellow);
-  color: var(--ink);
+  background: var(--accent);
+  color: var(--on-accent);
 }
 
-.lightbox a.button {
+a.button {
   display: inline-flex;
   align-items: center;
   text-decoration: none;
 }
 
 .lightbox .button:hover:not(:disabled) {
-  background: var(--white);
+  background: var(--inverse-text);
+  color: var(--inverse-bg);
 }
 
 /* 頁尾：引導線的終點，也是最常需要的資訊 */
@@ -1321,8 +1459,8 @@ h2 {
   position: relative;
   z-index: 1;
   padding: 3rem var(--content-right) 3.5rem var(--content-left);
-  background: var(--ink);
-  color: var(--white);
+  background: var(--inverse-bg);
+  color: var(--inverse-text);
 }
 
 .site-footer__head {
@@ -1334,17 +1472,17 @@ h2 {
 }
 
 .site-footer .button--quiet {
-  border-color: var(--white);
-  color: var(--white);
+  border-color: var(--inverse-text);
+  color: var(--inverse-text);
 }
 
 .site-footer .button--quiet:hover:not(:disabled) {
-  background: var(--white);
-  color: var(--ink);
+  background: var(--inverse-text);
+  color: var(--inverse-bg);
 }
 
 .site-footer__title {
-  color: var(--yellow);
+  color: var(--accent);
   font-size: 1.25rem;
 }
 
@@ -1379,7 +1517,7 @@ h2 {
 }
 
 .site-footer dt {
-  color: var(--yellow);
+  color: var(--accent);
   font-size: 0.9375rem;
 }
 
@@ -1395,7 +1533,7 @@ h2 {
   justify-content: space-between;
   margin-top: 2rem;
   padding-top: 1rem;
-  border-top: 1px solid rgb(255 255 255 / 0.3);
+  border-top: 1px solid color-mix(in srgb, var(--inverse-text) 30%, transparent);
   font-size: 0.9375rem;
 }
 
@@ -1410,12 +1548,12 @@ h2 {
 
   @keyframes dot-rise {
     from {
-      background: var(--blue);
+      background: var(--primary);
       transform: scale(0);
     }
 
     55% {
-      background: var(--blue);
+      background: var(--primary);
       transform: scale(1.35);
     }
   }

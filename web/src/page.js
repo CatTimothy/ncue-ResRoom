@@ -1,9 +1,3 @@
-const SITE = '國立彰化師範大學資源教室';
-
-export function setTitle(name) {
-  document.title = name ? `${name}｜${SITE}` : SITE;
-}
-
 /** 把焦點移到內容開頭：換頁或原本的按鈕消失時，鍵盤與螢幕報讀軟體使用者才不會迷路 */
 export function focusMain() {
   document.getElementById('main')?.focus({ preventScroll: true });

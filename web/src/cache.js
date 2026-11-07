@@ -1,7 +1,7 @@
 // 內容的短期快取，只為了換頁與回上一頁時順暢：關閉分頁就清除，最多保留 1 小時。
 // 只存公開內容與登入後才看得到的未發布內容；登入狀態改變時 api.js 會清除。修改資料格式時請更新版本號。
 const NAMESPACE = 'resroom:';
-const PREFIX = `${NAMESPACE}v7:`;
+const PREFIX = `${NAMESPACE}v8:`;
 const MAX_AGE = 60 * 60 * 1000;
 const MAX_ENTRY_LENGTH = 256 * 1024;
 

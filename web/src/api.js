@@ -119,16 +119,17 @@ export const fetchTodayVisits = () => query('{ todayVisits }');
 export const recordVisit = () => query('mutation { recordVisit }');
 
 // 全站設定
-const SITE_CONFIG_FIELDS = 'footerTitle phone extension hours teachers { name email extension } copyright';
+const THEME_FIELDS = 'background surface text primary accent';
+const SITE_CONFIG_FIELDS = `siteTitle logoText faviconUrl logoUrl campusUrl campusAlt heroPrefix heroTitle heroText
+  footerTitle phone extension hours teachers { name email extension }
+  defaultTheme lightTheme { ${THEME_FIELDS} } darkTheme { ${THEME_FIELDS} }`;
 
 export const fetchSiteConfig = () => query(`{ siteConfig { ${SITE_CONFIG_FIELDS} } }`);
 
-export const saveSiteConfig = ({ footerTitle, phone, extension, hours, teachers, copyright }) => mutate(
-  `mutation ($footerTitle: String!, $phone: String!, $extension: String!, $hours: String!, $teachers: [TeacherInput!]!, $copyright: String!) {
-    saveSiteConfig(footerTitle: $footerTitle, phone: $phone, extension: $extension, hours: $hours, teachers: $teachers, copyright: $copyright) { footerTitle }
-  }`,
-  { footerTitle, phone, extension, hours, teachers, copyright },
-  '頁尾已儲存',
+export const saveSiteConfig = (input) => mutate(
+  `mutation ($input: SiteConfigInput!) { saveSiteConfig(input: $input) { siteTitle } }`,
+  { input },
+  '網站設定已儲存',
 );
 
 // 內文圖片
@@ -208,13 +209,14 @@ export const deletePhoto = deleter('deletePhoto', '照片已刪除');
 // 頁面
 export const fetchPages = () => query('{ pages { slug title } }');
 export const fetchPage = (slug) => query('query ($slug: String!) { page(slug: $slug) { slug title format html } }', { slug });
-export const fetchPageSource = (slug) => query('query ($slug: String!) { page(slug: $slug) { title source } }', { slug });
+export const fetchPageSource = (slug) => query('query ($slug: String!) { page(slug: $slug) { title format source } }', { slug });
 
-export const savePage = ({ slug, title, content }) => mutate(
-  `mutation ($slug: String!, $title: String!, $content: String!) {
-    savePage(slug: $slug, title: $title, format: MARKDOWN, content: $content) { slug }
+/** format 是 MARKDOWN 或 HTML */
+export const savePage = ({ slug, title, format, content }) => mutate(
+  `mutation ($slug: String!, $title: String!, $format: ContentFormat!, $content: String!) {
+    savePage(slug: $slug, title: $title, format: $format, content: $content) { slug }
   }`,
-  { slug, title, content },
+  { slug, title, format, content },
   '頁面已儲存',
 );
 

@@ -3,10 +3,12 @@ import { fetchAlbums, fetchAnnouncements } from '../api.js';
 import AlbumList from '../components/AlbumList.vue';
 import AnnouncementList from '../components/AnnouncementList.vue';
 import ListStatus from '../components/ListStatus.vue';
+import { siteConfig, siteImage } from '../siteConfig.js';
 import { usePagedList } from '../usePagedList.js';
 
 const announcements = usePagedList(() => 'home:announcements', fetchAnnouncements, 5);
 const albums = usePagedList(() => 'home:albums', fetchAlbums, 6);
+const campus = siteImage('campusUrl');
 
 // 警示磚的點陣；動畫從左下角、也就是引導線的起點擴散開來
 const COLUMNS = 9;
@@ -22,16 +24,16 @@ const dots = Array.from({ length: COLUMNS * ROWS }, (_, i) => {
   <section class="hero" aria-labelledby="site-title">
     <div class="hero__text">
       <h1 id="site-title">
-        <span class="hero__school">國立彰化師範大學</span>
-        <span class="hero__unit">資源教室</span>
+        <span v-if="siteConfig?.heroPrefix" class="hero__school">{{ siteConfig.heroPrefix }}</span>
+        <span class="hero__unit">{{ siteConfig?.heroTitle }}</span>
       </h1>
-      <p class="hero__hours">週一至週五 8:30～17:00 開放</p>
+      <p v-if="siteConfig?.heroText" class="hero__hours">{{ siteConfig.heroText }}</p>
     </div>
     <div class="hero__media">
       <div class="hero__dots" aria-hidden="true">
         <i v-for="(distance, i) in dots" :key="i" :style="{ '--distance': distance }"></i>
       </div>
-      <img src="/campus.jpg" width="841" height="559" fetchpriority="high" alt="彰化師範大學校園：草坪後方的校舍與藍天白雲" />
+      <img :src="campus" width="841" height="559" fetchpriority="high" :alt="siteConfig?.campusAlt ?? ''" />
     </div>
   </section>
 

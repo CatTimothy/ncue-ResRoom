@@ -38,6 +38,7 @@ import 'md-editor-v3/lib/style.css';
 import { ref, useTemplateRef } from 'vue';
 import { can, uploadContentImage, uploadDocuments } from '../api.js';
 import { DOCUMENT_ACCEPT, fileBaseName, markdownLink } from '../format.js';
+import { themeMode } from '../theme.js';
 
 const props = defineProps({
   modelValue: { type: String, required: true },
@@ -173,6 +174,7 @@ async function onDrop(event) {
       ref="editor"
       :model-value="modelValue"
       language="zh-TW"
+      :theme="themeMode"
       :toolbars="toolbars"
       :footers="[]"
       :preview="false"

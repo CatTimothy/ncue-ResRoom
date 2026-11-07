@@ -4,7 +4,7 @@ export const PERMISSIONS = {
   MANAGE_ALBUMS: '相簿與照片',
   MANAGE_DOCUMENTS: '文件',
   MANAGE_PAGES: '頁面',
-  MANAGE_SITE_CONFIG: '頁尾',
+  MANAGE_SITE_CONFIG: '網站設定',
   MANAGE_USERS: '帳號管理',
 };
 

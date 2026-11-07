@@ -1,7 +1,8 @@
 import { nextTick } from 'vue';
 import { createRouter, createWebHistory } from 'vue-router';
 import { canAnimate } from './motion.js';
-import { focusMain, setTitle } from './page.js';
+import { focusMain } from './page.js';
+import { setTitle } from './siteConfig.js';
 import Album from './views/Album.vue';
 import Albums from './views/Albums.vue';
 import Announcement from './views/Announcement.vue';
@@ -12,6 +13,7 @@ import Login from './views/Login.vue';
 import NotFound from './views/NotFound.vue';
 import Pages from './views/Pages.vue';
 import PageView from './views/PageView.vue';
+import SiteSettings from './views/SiteSettings.vue';
 
 /** 在選單上有固定位置的頁面 */
 export const BUILT_IN_PAGES = {
@@ -40,6 +42,7 @@ export const router = createRouter({
     { path: '/documents', component: Documents, meta: { title: '文件下載' } },
     { path: '/pages', component: Pages, meta: { title: '所有頁面' } },
     { path: '/pages/:slug', component: PageView, props: true },
+    { path: '/settings', component: SiteSettings, meta: { title: '網站設定' } },
     { path: '/login', component: Login, meta: { title: '管理員登入' } },
     { path: '/:rest(.*)*', component: NotFound, meta: { title: '找不到頁面' } },
   ],

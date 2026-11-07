@@ -1,7 +1,7 @@
 import { ref, watch } from 'vue';
 import { contentVersion } from './api.js';
 import { cache } from './cache.js';
-import { setTitle } from './page.js';
+import { setTitle } from './siteConfig.js';
 
 /**
  * 單筆內容：先立即顯示本地快取，再到背景向 API 更新；getKey() 的值改變時換成新內容。

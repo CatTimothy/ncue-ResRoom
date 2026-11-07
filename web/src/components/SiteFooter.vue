@@ -1,15 +1,12 @@
 <script setup>
-import { useTemplateRef } from 'vue';
-import { can, fetchSiteConfig } from '../api.js';
+import { can } from '../api.js';
 import { telHref } from '../format.js';
-import { useCachedItem } from '../useCachedItem.js';
+import { siteConfig as config } from '../siteConfig.js';
 import { useTodayVisits } from '../useTodayVisits.js';
-import FooterEditor from './FooterEditor.vue';
 
-const editor = useTemplateRef('editor');
+const COPYRIGHT = 'CatTimothy';
 const visitors = useTodayVisits();
 const year = new Date().getFullYear();
-const { item: config } = useCachedItem(() => 'site-config', fetchSiteConfig);
 </script>
 
 <template>
@@ -17,7 +14,7 @@ const { item: config } = useCachedItem(() => 'site-config', fetchSiteConfig);
     <template v-if="config">
       <div class="site-footer__head">
         <h2 class="site-footer__title">{{ config.footerTitle }}</h2>
-        <button v-if="can('MANAGE_SITE_CONFIG')" type="button" class="button button--small button--quiet" @click="editor.open(config)">編輯頁尾</button>
+        <RouterLink v-if="can('MANAGE_SITE_CONFIG')" class="button button--small button--quiet" to="/settings">編輯頁尾</RouterLink>
       </div>
       <p class="site-footer__phone">
         <a :href="telHref(config.phone)">{{ config.phone }}</a>
@@ -40,11 +37,9 @@ const { item: config } = useCachedItem(() => 'site-config', fetchSiteConfig);
         </div>
       </dl>
     </template>
-    <div v-if="config || visitors !== null" class="site-footer__bottom">
-      <small v-if="config">Copyright © {{ year }} {{ config.copyright }}</small>
+    <div class="site-footer__bottom">
+      <small>Copyright © {{ year }} {{ COPYRIGHT }}</small>
       <small v-if="visitors !== null">今日訪問人數：{{ visitors }}</small>
     </div>
   </footer>
-
-  <FooterEditor v-if="can('MANAGE_SITE_CONFIG')" ref="editor" />
 </template>

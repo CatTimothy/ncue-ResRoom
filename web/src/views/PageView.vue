@@ -26,8 +26,8 @@ const { item, status } = state;
 
 /** 圖片的說明存在內文裡；用 HTML 寫的頁面對不到語法，要到編輯畫面改 */
 async function saveImageAlt(photo, alt) {
-  const { title, source } = await fetchPageSource(props.slug);
-  await savePage({ slug: props.slug, title, content: replaceImageAlt(source, photo, alt) });
+  const { title, format, source } = await fetchPageSource(props.slug);
+  await savePage({ slug: props.slug, title, format, content: replaceImageAlt(source, photo, alt) });
 }
 
 const remove = () => confirmDelete(

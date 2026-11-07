@@ -1,14 +1,17 @@
 <script setup>
 import { computed, useTemplateRef } from 'vue';
 import { useRoute } from 'vue-router';
-import { currentUser, fetchPages, logout, notice } from './api.js';
+import { can, currentUser, fetchPages, logout, notice } from './api.js';
 import SiteFooter from './components/SiteFooter.vue';
 import UserSettings from './components/UserSettings.vue';
 import { BUILT_IN_PAGES } from './router.js';
+import { siteConfig, siteImage } from './siteConfig.js';
+import { themeMode, toggleTheme } from './theme.js';
 import { useCachedItem } from './useCachedItem.js';
 
 const route = useRoute();
 const settings = useTemplateRef('settings');
+const logo = siteImage('logoUrl');
 
 // 管理員另外新增的頁面接在主選單後面
 const { item: pages } = useCachedItem(() => 'pages', fetchPages);
@@ -28,9 +31,9 @@ async function signOut() {
   <div class="path" aria-hidden="true"><div class="path__fill"></div></div>
 
   <header class="site-header">
-    <RouterLink to="/" class="wordmark" aria-label="國立彰化師範大學資源教室首頁">
-      <img src="/logo.webp" width="776" height="140" alt="" />
-      <span class="wordmark__unit">資源教室</span>
+    <RouterLink to="/" class="wordmark" :aria-label="`${siteConfig?.siteTitle ?? ''}首頁`">
+      <img :src="logo" alt="" />
+      <span v-if="siteConfig?.logoText" class="wordmark__unit">{{ siteConfig.logoText }}</span>
     </RouterLink>
     <div class="site-header__menus">
       <nav class="utility-nav" aria-label="輔助選單">
@@ -38,8 +41,15 @@ async function signOut() {
         <RouterLink to="/map" active-class="is-current">位置圖</RouterLink>
         <RouterLink to="/documents" active-class="is-current">文件下載</RouterLink>
         <RouterLink to="/contact" active-class="is-current">聯絡我們</RouterLink>
+        <button
+          type="button"
+          class="button button--small button--quiet"
+          :aria-pressed="themeMode === 'dark'"
+          @click="toggleTheme"
+        >深色模式</button>
         <template v-if="currentUser">
           <RouterLink to="/pages" active-class="is-current">所有頁面</RouterLink>
+          <RouterLink v-if="can('MANAGE_SITE_CONFIG')" to="/settings" active-class="is-current">網站設定</RouterLink>
           <span class="admin-status">{{ currentUser.username }} 已登入</span>
           <button type="button" class="button button--small button--quiet" @click="settings.open()">帳號設定</button>
           <button type="button" class="button button--small button--quiet" @click="signOut">登出</button>

@@ -17,6 +17,7 @@ const emit = defineEmits(['done', 'cancel']);
 const { form, changed, loading, loadFailed, busy, error, reset, markSaved, load, run } = useEditor({
   slug: props.slug ?? '',
   title: props.initialTitle,
+  format: 'MARKDOWN',
   content: '',
 });
 const creating = !props.slug;
@@ -26,7 +27,7 @@ useLeaveGuard(changed);
 if (props.slug) {
   load(async () => {
     const existing = await fetchPageSource(props.slug);
-    if (existing) reset({ title: existing.title, content: existing.source });
+    if (existing) reset({ title: existing.title, format: existing.format, content: existing.source });
   });
 }
 
@@ -63,9 +64,19 @@ const submit = () => run(async () => {
       <input v-model="form.slug" required maxlength="100" pattern="[a-z0-9]+(-[a-z0-9]+)*" />
       <small>小寫英文、數字和連字號，例如 guide-2026。頁面會出現在 /pages/guide-2026。</small>
     </label>
-    <div class="field">
+    <fieldset class="format-choice">
+      <legend>內容格式</legend>
+      <label><input v-model="form.format" type="radio" value="MARKDOWN" :disabled="loading" /> Markdown</label>
+      <label><input v-model="form.format" type="radio" value="HTML" :disabled="loading" /> HTML</label>
+    </fieldset>
+    <div v-if="form.format === 'MARKDOWN'" class="field">
       <span>內容</span>
       <MarkdownEditor v-model="form.content" :disabled="loading" @error="error = $event" />
     </div>
+    <label v-else class="field">
+      <span>內容（HTML）</span>
+      <textarea v-model="form.content" class="html-input" rows="20" spellcheck="false" :disabled="loading"></textarea>
+      <small>會移除 &lt;script&gt;、&lt;style&gt;、style 屬性與事件屬性；&lt;iframe&gt; 只接受 YouTube 和 Google 地圖。切換格式不會轉換已輸入的內容。</small>
+    </label>
   </EditorForm>
 </template>

@@ -7,6 +7,18 @@
     <meta name="theme-color" content="#ffce00" />
     <link rel="icon" type="image/png" href="/favicon.png" />
     <title>國立彰化師範大學資源教室</title>
+    <script>
+      // 畫面出現前先套用上次的主題，避免閃一下另一個主題；之後由 src/theme.js 接手
+      try {
+        const applied = JSON.parse(localStorage.getItem('resroom-theme-applied'));
+        const choice = localStorage.getItem('resroom-theme');
+        const mode = choice || applied?.mode || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+        document.documentElement.dataset.theme = mode;
+        if (applied?.mode === mode) {
+          for (const [name, value] of Object.entries(applied.colors)) document.documentElement.style.setProperty(`--${name}`, value);
+        }
+      } catch {}
+    </script>
   </head>
   <body>
     <div id="app"></div>
