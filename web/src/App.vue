@@ -41,12 +41,6 @@ async function signOut() {
         <RouterLink to="/map" active-class="is-current">位置圖</RouterLink>
         <RouterLink to="/documents" active-class="is-current">文件下載</RouterLink>
         <RouterLink to="/contact" active-class="is-current">聯絡我們</RouterLink>
-        <button
-          type="button"
-          class="button button--small button--quiet"
-          :aria-pressed="themeMode === 'dark'"
-          @click="toggleTheme"
-        >深色模式</button>
         <template v-if="currentUser">
           <RouterLink to="/pages" active-class="is-current">所有頁面</RouterLink>
           <RouterLink v-if="can('MANAGE_SITE_CONFIG')" to="/settings" active-class="is-current">網站設定</RouterLink>
@@ -59,6 +53,23 @@ async function signOut() {
           class="login-link"
           :to="{ path: '/login', query: route.path === '/login' ? {} : { redirect: route.fullPath } }"
         >登入</RouterLink>
+        <!-- 名稱固定，按下狀態表示是否為深色；圖示顯示按下後會切換成的主題 -->
+        <button
+          type="button"
+          class="theme-toggle"
+          aria-label="深色模式"
+          :aria-pressed="themeMode === 'dark'"
+          :title="themeMode === 'dark' ? '切換成淺色模式' : '切換成深色模式'"
+          @click="toggleTheme"
+        >
+          <svg v-if="themeMode === 'dark'" viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="12" cy="12" r="4.5" />
+            <path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M4.9 19.1l1.8-1.8M17.3 6.7l1.8-1.8" />
+          </svg>
+          <svg v-else viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5Z" />
+          </svg>
+        </button>
       </nav>
       <nav class="main-nav" aria-label="主選單">
         <RouterLink to="/about" active-class="is-current">資源教室簡介</RouterLink>

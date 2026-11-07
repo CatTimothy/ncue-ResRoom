@@ -149,7 +149,7 @@ const leave = () => router.push('/');
             <option value="LIGHT">淺色</option>
             <option value="DARK">深色</option>
           </select>
-          <small>訪客按頁首的「深色模式」切換後，會改用自己的選擇。</small>
+          <small>訪客按頁首右上角的月亮／太陽圖示切換後，會改用自己的選擇。</small>
         </label>
         <div class="field-row">
           <div v-for="(theme, field) in THEMES" :key="field" class="field">

@@ -720,6 +720,7 @@ h2 {
   display: grid;
   gap: 0.25rem;
   justify-items: end;
+  padding-right: 3rem;
 }
 
 .site-header nav {
@@ -765,6 +766,38 @@ h2 {
   color: var(--accent);
 }
 
+/* 主題切換：固定在頁首右上角的圖示按鈕，選單右側留出它的位置 */
+.theme-toggle {
+  position: absolute;
+  top: 1.25rem;
+  right: var(--content-right);
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  padding: 0;
+  border: 2px solid currentcolor;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--on-accent);
+  cursor: pointer;
+}
+
+.theme-toggle:hover {
+  background: var(--on-accent);
+  color: var(--accent);
+}
+
+.theme-toggle svg {
+  width: 1.375rem;
+  height: 1.375rem;
+  fill: none;
+  stroke: currentcolor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+}
+
 .admin-status {
   margin-left: 0.75rem;
 }
@@ -788,6 +821,15 @@ h2 {
 
   .site-header nav {
     justify-content: flex-start;
+  }
+
+  /* 選單換到標誌下方時，改由標誌那一行讓出右上角 */
+  .site-header__menus {
+    padding-right: 0;
+  }
+
+  .wordmark {
+    padding-right: 3rem;
   }
 }
 
