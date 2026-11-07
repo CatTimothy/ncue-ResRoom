@@ -38,10 +38,14 @@ darkQuery.addEventListener('change', (event) => {
   systemDark.value = event.matches;
 });
 
-/** 目前的主題：訪客的選擇優先，其次是網站設定的預設，SYSTEM 時依裝置設定 */
+// index.html 開頭的程式依上次套用的主題設定好的模式
+const initialMode = document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light';
+
+/** 目前的主題：訪客的選擇優先，其次是網站設定的預設，SYSTEM 時依裝置設定；設定載入前沿用上次的主題 */
 export const themeMode = computed(() => {
   if (choice.value) return choice.value;
-  const preset = siteConfig.value?.defaultTheme ?? 'SYSTEM';
+  if (!siteConfig.value) return initialMode;
+  const preset = siteConfig.value.defaultTheme;
   if (preset === 'SYSTEM') return systemDark.value ? 'dark' : 'light';
   return preset.toLowerCase();
 });
@@ -67,9 +71,11 @@ let lastApplied = null;
 watchEffect(() => {
   const root = document.documentElement;
   const mode = themeMode.value;
-  const custom = siteConfig.value?.[mode === 'dark' ? 'darkTheme' : 'lightTheme'] ?? {};
-  const colors = {};
   root.dataset.theme = mode;
+  // 設定還沒載入：保留 index.html 還原的顏色，也不要用空的顏色蓋掉保存的主題
+  if (!siteConfig.value) return;
+  const custom = siteConfig.value[mode === 'dark' ? 'darkTheme' : 'lightTheme'];
+  const colors = {};
   for (const name of Object.keys(THEME_COLORS)) {
     if (custom[name]) {
       root.style.setProperty(`--${name}`, custom[name]);

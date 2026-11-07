@@ -5,6 +5,8 @@ import { cache } from './cache.js';
 export const currentUser = ref(null);
 /** 目前的使用者有沒有這項權限。只決定要不要顯示按鈕，實際的檢查在伺服器 */
 export const can = (permission) => Boolean(currentUser.value?.permissions?.includes(permission));
+/** 已向伺服器確認過登入狀態；確認前 can() 一律是 false，不能當作沒有權限 */
+export const userChecked = ref(false);
 /** 內容或登入狀態改變時遞增，畫面上的內容會跟著重新取得 */
 export const contentVersion = ref(0);
 /** 操作結果的提示文字 */
@@ -273,6 +275,8 @@ export async function loadCurrentUser() {
     if (currentUser.value) publish(); // 登入後才看得到未發布的內容
   } catch (error) {
     console.error(error);
+  } finally {
+    userChecked.value = true;
   }
 }
 

@@ -31,11 +31,18 @@ CREATE OR REPLACE FUNCTION all_match(items JSONB, field TEXT, pattern TEXT, max_
   )
 $$;
 
+-- 去除頭尾的空白、換行與 tab（btrim 預設只去除空格）
+CREATE OR REPLACE FUNCTION trim_text(value TEXT) RETURNS TEXT LANGUAGE sql IMMUTABLE AS $$
+  SELECT btrim(value, E' 	
+')
+$$;
+
 -- 多個資料表共用的欄位限制。約束名稱是「型別名稱_check」，錯誤訊息在 src/db/errors.js
 DO $$
 BEGIN
   IF to_regtype('title_text') IS NULL THEN
-    CREATE DOMAIN title_text AS TEXT CHECK (VALUE ~ '\S' AND char_length(VALUE) <= 200);
+    -- 型別的檢查在 trim_columns 之前執行，所以長度以去除頭尾空白後計算
+    CREATE DOMAIN title_text AS TEXT CHECK (VALUE ~ '\S' AND char_length(trim_text(VALUE)) <= 200);
   END IF;
   IF to_regtype('content_text') IS NULL THEN
     CREATE DOMAIN content_text AS TEXT CHECK (octet_length(VALUE) <= 2097152);
@@ -49,7 +56,7 @@ BEGIN
   END IF;
 END $$;
 
--- 寫入前去除參數所列欄位的頭尾空白，查詢就不用各自呼叫 btrim。內文（Markdown 的縮排有意義）不要列進來。
+-- 寫入前去除參數所列欄位的頭尾空白，查詢就不用各自去除。內文（Markdown 的縮排有意義）不要列進來。
 -- JSON 裡的文字（site_config.teachers）碰不到，由 src/graphql/site-config.js 的儲存語句處理
 CREATE OR REPLACE FUNCTION trim_columns() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 DECLARE
@@ -58,7 +65,7 @@ DECLARE
   col TEXT;
 BEGIN
   FOREACH col IN ARRAY TG_ARGV LOOP
-    patch := patch || jsonb_build_object(col, btrim(row_json ->> col));
+    patch := patch || jsonb_build_object(col, trim_text(row_json ->> col));
   END LOOP;
   NEW := jsonb_populate_record(NEW, patch);
   RETURN NEW;

@@ -33,7 +33,7 @@ const dots = Array.from({ length: COLUMNS * ROWS }, (_, i) => {
       <div class="hero__dots" aria-hidden="true">
         <i v-for="(distance, i) in dots" :key="i" :style="{ '--distance': distance }"></i>
       </div>
-      <img :src="campus" width="841" height="559" fetchpriority="high" :alt="siteConfig?.campusAlt ?? ''" />
+      <img v-if="siteConfig" :src="campus" width="841" height="559" fetchpriority="high" :alt="siteConfig.campusAlt" />
     </div>
   </section>
 

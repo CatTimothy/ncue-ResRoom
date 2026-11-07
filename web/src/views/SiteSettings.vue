@@ -1,7 +1,7 @@
 <script setup>
 import { watch } from 'vue';
 import { useRouter } from 'vue-router';
-import { can, saveSiteConfig } from '../api.js';
+import { can, currentUser, saveSiteConfig, userChecked } from '../api.js';
 import EditorForm from '../components/EditorForm.vue';
 import ImageField from '../components/ImageField.vue';
 import { DEFAULT_IMAGES, siteConfig } from '../siteConfig.js';
@@ -49,8 +49,8 @@ const leave = () => router.push('/');
 
 <template>
   <div class="page">
-    <p v-if="!can('MANAGE_SITE_CONFIG')">你沒有修改網站設定的權限。</p>
-    <p v-else-if="!siteConfig" class="loading">載入中…</p>
+    <p v-if="!userChecked || (currentUser && !siteConfig)" class="loading">載入中…</p>
+    <p v-else-if="!can('MANAGE_SITE_CONFIG')">你沒有修改網站設定的權限。</p>
 
     <EditorForm
       v-else

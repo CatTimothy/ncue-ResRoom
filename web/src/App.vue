@@ -32,7 +32,7 @@ async function signOut() {
 
   <header class="site-header">
     <RouterLink to="/" class="wordmark" :aria-label="`${siteConfig?.siteTitle ?? ''}首頁`">
-      <img :src="logo" alt="" />
+      <img :src="logo" width="776" height="140" alt="" />
       <span v-if="siteConfig?.logoText" class="wordmark__unit">{{ siteConfig.logoText }}</span>
     </RouterLink>
     <div class="site-header__menus">

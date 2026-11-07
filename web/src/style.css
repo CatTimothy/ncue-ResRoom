@@ -832,6 +832,11 @@ h2 {
   max-width: 52rem;
 }
 
+/* 圖片等網站設定載入後才出現，先佔好位置 */
+.hero__media:not(:has(img)) {
+  aspect-ratio: 841 / 559;
+}
+
 .hero__media img {
   position: relative;
   width: 100%;

@@ -111,9 +111,9 @@ const SAVE = `
     ${COLUMNS.map((column) => `${column} = r.${column}`).join(',\n    ')},
     teachers = (
       SELECT COALESCE(jsonb_agg(jsonb_build_object(
-        'name', btrim(t.item ->> 'name'),
-        'email', btrim(t.item ->> 'email'),
-        'extension', btrim(t.item ->> 'extension')
+        'name', trim_text(t.item ->> 'name'),
+        'email', trim_text(t.item ->> 'email'),
+        'extension', trim_text(t.item ->> 'extension')
       ) ORDER BY t.n), '[]')
       FROM jsonb_array_elements(r.teachers) WITH ORDINALITY AS t (item, n)
     ),

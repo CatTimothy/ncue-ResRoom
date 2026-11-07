@@ -67,7 +67,7 @@ API 不在 `http://localhost:4000` 時，啟動前請設定 `API_URL`。
 
 - 不使用 ORM。所有查詢都是 `db.prepare('... $1 ...').get / all / run(...)`，以具名的伺服器端 prepared statement 執行。
 - 資料驗證盡量交給資料庫：欄位值的限制（`CHECK`）都在 `src/db/schema.sql`，多個資料表共用的限制寫成型別（`title_text`、`content_text`、`image_path`、`theme_colors`）。新增約束時，請到 `src/db/errors.js` 加上錯誤訊息；型別的約束名稱是「型別名稱_check」。
-- 文字欄位的頭尾空白由 `trim_columns` 觸發程序去除，查詢不用呼叫 `btrim`。要去除空白的欄位列在 `schema.sql` 最後的區塊；內文不要列進去（Markdown 的縮排有意義）。
+- 文字欄位頭尾的空白與換行由 `trim_columns` 觸發程序（`trim_text`）去除，查詢不用自己處理。要去除空白的欄位列在 `schema.sql` 最後的區塊；內文不要列進去（Markdown 的縮排有意義）。
 - 欄位用 snake_case，查詢結果會自動轉成 camelCase，和 GraphQL 的欄位名稱一致。
 - `schema.sql` 只會建立不存在的物件；上線後要改結構，需另外寫 `ALTER TABLE`，並確保可重複執行（可參考其中 `announcements` 的升級區塊）。
 

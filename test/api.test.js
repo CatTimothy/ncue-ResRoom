@@ -502,6 +502,12 @@ test('announcement CRUD, ordering and paging', async () => {
   assert.ok(updated.modifiedAt > older.modifiedAt, 'editing must update modified_at');
 
   assert.match((await gql(SAVE_ANNOUNCEMENT, { id: '99999', title: 'x', content: 'y' })).errors[0].message, /找不到/);
+  // 長度以去除頭尾空白後計算
+  const paddedResult = await gql(SAVE_ANNOUNCEMENT, { id: older.id, title: ` ${'長'.repeat(200)}
+`, content: 'c' });
+  const padded = paddedResult.data.saveAnnouncement;
+  assert.equal(padded.title, '長'.repeat(200));
+  assert.match((await gql(SAVE_ANNOUNCEMENT, { id: older.id, title: '長'.repeat(201), content: 'c' })).errors[0].message, /200/);
   assert.equal((await gql(`mutation { deleteAnnouncement(id: ${newer.id}) }`)).data.deleteAnnouncement, true);
   assert.equal((await gql(`mutation { deleteAnnouncement(id: ${newer.id}) }`)).data.deleteAnnouncement, false);
   await gql(`mutation { deleteAnnouncement(id: ${older.id}) }`);
