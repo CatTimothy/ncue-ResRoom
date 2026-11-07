@@ -33,8 +33,7 @@ $$;
 
 -- 去除頭尾的空白、換行與 tab（btrim 預設只去除空格）
 CREATE OR REPLACE FUNCTION trim_text(value TEXT) RETURNS TEXT LANGUAGE sql IMMUTABLE AS $$
-  SELECT btrim(value, E' 	
-')
+  SELECT btrim(value, E' \t\r\n')
 $$;
 
 -- 多個資料表共用的欄位限制。約束名稱是「型別名稱_check」，錯誤訊息在 src/db/errors.js
