@@ -10,7 +10,7 @@ export const THEME_COLORS = {
   accent: '頁首與標記',
 };
 
-// 訪客自己選的主題；index.html 開頭的程式也讀同樣的鍵，畫面出現前就套用，不會先閃一下另一個主題
+// 訪客自己選的主題。實際套用的主題另外記在 APPLIED_KEY，index.html 開頭的程式在畫面出現前就套用，不會先閃一下另一個主題
 const CHOICE_KEY = 'resroom-theme';
 const APPLIED_KEY = 'resroom-theme-applied';
 
@@ -63,6 +63,7 @@ export function defaultColors(mode) {
   return colors;
 }
 
+let lastApplied = null;
 watchEffect(() => {
   const root = document.documentElement;
   const mode = themeMode.value;
@@ -77,6 +78,9 @@ watchEffect(() => {
       root.style.removeProperty(`--${name}`);
     }
   }
+  const applied = JSON.stringify({ mode, colors });
+  if (applied === lastApplied) return; // 設定在每次修改內容後都會重新取得，主題沒變就不用再處理
+  lastApplied = applied;
   document.querySelector('meta[name="theme-color"]')?.setAttribute('content', getComputedStyle(root).getPropertyValue('--accent').trim());
-  store(APPLIED_KEY, JSON.stringify({ mode, colors }));
+  store(APPLIED_KEY, applied);
 });

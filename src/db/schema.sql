@@ -49,14 +49,16 @@ BEGIN
   END IF;
 END $$;
 
--- 寫入前去除參數所列欄位的頭尾空白，查詢就不用各自呼叫 btrim。內文（Markdown 的縮排有意義）不要列進來
+-- 寫入前去除參數所列欄位的頭尾空白，查詢就不用各自呼叫 btrim。內文（Markdown 的縮排有意義）不要列進來。
+-- JSON 裡的文字（site_config.teachers）碰不到，由 src/graphql/site-config.js 的儲存語句處理
 CREATE OR REPLACE FUNCTION trim_columns() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 DECLARE
+  row_json JSONB := to_jsonb(NEW);
   patch JSONB := '{}';
   col TEXT;
 BEGIN
   FOREACH col IN ARRAY TG_ARGV LOOP
-    patch := patch || jsonb_build_object(col, btrim(to_jsonb(NEW) ->> col));
+    patch := patch || jsonb_build_object(col, btrim(row_json ->> col));
   END LOOP;
   NEW := jsonb_populate_record(NEW, patch);
   RETURN NEW;
@@ -328,7 +330,14 @@ BEGIN
   END LOOP;
 END $$;
 
--- 寫入時去除頭尾空白的欄位
+-- 所有可能引用上傳圖片的文字；清除沒人用的內文圖片時只看這裡（src/lib/storage.js）。新增會放圖片的欄位時加在這裡
+CREATE OR REPLACE VIEW image_references (text) AS
+  SELECT content FROM announcements
+  UNION ALL SELECT source FROM pages
+  UNION ALL SELECT concat_ws(' ', favicon_url, logo_url, campus_url) FROM site_config;
+
+-- 寫入時去除頭尾空白的欄位。新增文字欄位時記得加在這裡。
+-- 只在觸發程序不存在或欄位清單改變時重建，啟動時不用每次鎖住資料表
 DO $$
 DECLARE
   t RECORD;
@@ -342,6 +351,12 @@ BEGIN
     ('site_config', ARRAY['site_title', 'logo_text', 'campus_alt', 'hero_prefix', 'hero_title', 'hero_text', 'footer_title', 'phone', 'extension', 'hours'])
   ) AS v (tbl, cols)
   LOOP
+    -- tgargs 是以 \000 結尾的參數，encode 後就是「欄位\000欄位\000」
+    CONTINUE WHEN EXISTS (
+      SELECT FROM pg_trigger
+      WHERE tgrelid = t.tbl::regclass AND tgname = t.tbl || '_trim'
+        AND encode(tgargs, 'escape') = array_to_string(t.cols, '\000') || '\000'
+    );
     EXECUTE format('DROP TRIGGER IF EXISTS %I ON %I', t.tbl || '_trim', t.tbl);
     EXECUTE format(
       'CREATE TRIGGER %I BEFORE INSERT OR UPDATE OF %s ON %I FOR EACH ROW EXECUTE FUNCTION trim_columns(%s)',

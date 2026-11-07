@@ -11,6 +11,11 @@ const camelizeRow = (row) => Object.fromEntries(
   Object.entries(row).map(([key, value]) => [toCamelCase(key), value]),
 );
 
+/** camelizeRow 的反向：GraphQL 的輸入物件轉成欄位名稱，例如交給 jsonb_populate_record */
+export const snakeizeKeys = (object) => Object.fromEntries(
+  Object.entries(object).map(([key, value]) => [key.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`), value]),
+);
+
 export async function openDb(connectionString) {
   if (!connectionString) throw new Error('必須設定 DATABASE_URL');
 

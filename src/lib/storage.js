@@ -93,17 +93,12 @@ export function createStorage({ db, dataDir }) {
     });
   }
 
-  /** 清除沒有公告、頁面或網站設定引用的圖片；留 1 天緩衝，避免刪到還在編輯中的內容所用的圖片 */
+  /** 清除沒有內容引用（見 schema.sql 的 image_references）的圖片；留 1 天緩衝，避免刪到還在編輯中的內容所用的圖片 */
   async function sweepContentImages() {
     const rows = await db.prepare(`
       DELETE FROM content_images ci
       WHERE ci.created_at < now() - interval '1 day'
-        AND NOT EXISTS (SELECT 1 FROM announcements a WHERE strpos(a.content, split_part(ci.stored_name, '.', 1)) > 0)
-        AND NOT EXISTS (SELECT 1 FROM pages p WHERE strpos(p.source, split_part(ci.stored_name, '.', 1)) > 0)
-        AND NOT EXISTS (
-          SELECT 1 FROM site_config s
-          WHERE strpos(concat_ws(' ', s.favicon_url, s.logo_url, s.campus_url), split_part(ci.stored_name, '.', 1)) > 0
-        )
+        AND NOT EXISTS (SELECT 1 FROM image_references r WHERE strpos(r.text, split_part(ci.stored_name, '.', 1)) > 0)
       RETURNING ci.stored_name
     `).all();
     await removeFiles(rows.map((row) => row.storedName));

@@ -471,8 +471,9 @@ test('old announcements table is upgraded without losing data', async () => {
       assert.equal(row.createdAt, '2020-01-02T03:04:05.000Z');
       assert.equal(row.publishedAt, row.createdAt);
       // 約束改名後仍然有效，modified_at 有預設值
-      const added = await db.prepare("INSERT INTO announcements (title, content) VALUES ('新', 'c') RETURNING *").get();
+      const added = await db.prepare("INSERT INTO announcements (title, content) VALUES ('  新  ', 'c') RETURNING *").get();
       assert.ok(added.modifiedAt);
+      assert.equal(added.title, '新', 'the trim trigger survives applying the schema twice');
       await assert.rejects(
         db.prepare('INSERT INTO announcements (title, content) VALUES ($1, $2)').run('t', 'x'.repeat(2097153)),
         /2 MB/,

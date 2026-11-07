@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch } from 'vue';
+import { watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { can, saveSiteConfig } from '../api.js';
 import EditorForm from '../components/EditorForm.vue';
@@ -10,13 +10,15 @@ import { useLeaveGuard } from '../useEditMode.js';
 import { useEditor } from '../useEditor.js';
 
 const MAX_TEACHERS = 10;
-const THEMES = { lightTheme: ['light', '淺色主題'], darkTheme: ['dark', '深色主題'] };
-const DEFAULT_COLORS = Object.fromEntries(Object.entries(THEMES).map(([field, [mode]]) => [field, defaultColors(mode)]));
+const THEMES = {
+  lightTheme: { mode: 'light', label: '淺色主題' },
+  darkTheme: { mode: 'dark', label: '深色主題' },
+};
+const DEFAULT_COLORS = Object.fromEntries(Object.entries(THEMES).map(([field, { mode }]) => [field, defaultColors(mode)]));
 
 const router = useRouter();
 const { form, changed, busy, error, reset, markSaved, run } = useEditor({});
 useLeaveGuard(changed);
-const ready = ref(false);
 
 /** 顏色欄位要有值，沒有設定的填入內建顏色；儲存時再把和內建相同的改回 null */
 const withDefaults = (field, colors) => Object.fromEntries(
@@ -35,7 +37,6 @@ watch(siteConfig, (config) => {
     lightTheme: withDefaults('lightTheme', config.lightTheme),
     darkTheme: withDefaults('darkTheme', config.darkTheme),
   });
-  ready.value = true;
 }, { immediate: true });
 
 const submit = () => run(async () => {
@@ -49,7 +50,7 @@ const leave = () => router.push('/');
 <template>
   <div class="page">
     <p v-if="!can('MANAGE_SITE_CONFIG')">你沒有修改網站設定的權限。</p>
-    <p v-else-if="!ready" class="loading">載入中…</p>
+    <p v-else-if="!siteConfig" class="loading">載入中…</p>
 
     <EditorForm
       v-else
@@ -152,10 +153,10 @@ const leave = () => router.push('/');
         </label>
         <div class="field-row">
           <div v-for="(theme, field) in THEMES" :key="field" class="field">
-            <span>{{ theme[1] }}</span>
-            <label v-for="(name, color) in THEME_COLORS" :key="color" class="color-field">
-              <input v-model="form[field][color]" type="color" />
-              {{ name }}
+            <span>{{ theme.label }}</span>
+            <label v-for="(label, key) in THEME_COLORS" :key="key" class="color-field">
+              <input v-model="form[field][key]" type="color" />
+              {{ label }}
             </label>
             <div>
               <button type="button" class="button button--small button--quiet" @click="form[field] = { ...DEFAULT_COLORS[field] }">還原內建顏色</button>

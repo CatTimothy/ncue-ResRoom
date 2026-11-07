@@ -1,8 +1,7 @@
 import { nextTick } from 'vue';
 import { createRouter, createWebHistory } from 'vue-router';
 import { canAnimate } from './motion.js';
-import { focusMain } from './page.js';
-import { setTitle } from './siteConfig.js';
+import { focusMain, setTitle } from './page.js';
 import Album from './views/Album.vue';
 import Albums from './views/Albums.vue';
 import Announcement from './views/Announcement.vue';

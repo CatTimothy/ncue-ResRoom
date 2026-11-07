@@ -1,3 +1,4 @@
+import { snakeizeKeys } from '../db/index.js';
 import { withPermission } from '../lib/guards.js';
 
 export const siteConfigTypeDefs = /* GraphQL */ `
@@ -104,8 +105,6 @@ const COLUMNS = [
   'hero_prefix', 'hero_title', 'hero_text', 'footer_title', 'phone', 'extension', 'hours', 'default_theme',
 ];
 
-const toSnakeCase = (key) => key.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
-
 // 整份設定以 JSON 傳入，由資料庫轉成資料列；文字欄位的頭尾空白由 trim_columns 觸發程序去除
 const SAVE = `
   UPDATE site_config c SET
@@ -131,9 +130,7 @@ export function createSiteConfigResolvers({ db }) {
     },
 
     Mutation: withPermission('MANAGE_SITE_CONFIG', {
-      saveSiteConfig: (_, { input }) => db.prepare(SAVE).get(JSON.stringify(
-        Object.fromEntries(Object.entries(input).map(([key, value]) => [toSnakeCase(key), value])),
-      )),
+      saveSiteConfig: (_, { input }) => db.prepare(SAVE).get(JSON.stringify(snakeizeKeys(input))),
     }),
   };
 }

@@ -14,8 +14,8 @@ export const ALL_PERMISSIONS = [
   'MANAGE_USERS',
 ];
 
-/** 有其中一項才能上傳檔案。上傳不限大小，所以要在解析請求前就擋下其他帳號 */
-export const UPLOAD_PERMISSIONS = ['MANAGE_ANNOUNCEMENTS', 'MANAGE_ALBUMS', 'MANAGE_DOCUMENTS', 'MANAGE_PAGES', 'MANAGE_SITE_CONFIG'];
-
 /** 可以上傳內文圖片（uploadContentImage）的權限 */
 export const CONTENT_IMAGE_PERMISSIONS = ['MANAGE_ANNOUNCEMENTS', 'MANAGE_PAGES', 'MANAGE_SITE_CONFIG'];
+
+/** 有其中一項才能上傳檔案。上傳不限大小，所以要在解析請求前就擋下其他帳號 */
+export const UPLOAD_PERMISSIONS = [...CONTENT_IMAGE_PERMISSIONS, 'MANAGE_ALBUMS', 'MANAGE_DOCUMENTS'];
