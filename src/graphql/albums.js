@@ -56,12 +56,12 @@ export function createAlbumsResolvers({ db, storage }) {
         if (id == null) {
           const created = await db.prepare(`
             INSERT INTO albums (name, event_date)
-            VALUES (btrim($1), COALESCE($2::date, ${TAIPEI_TODAY})) RETURNING id
+            VALUES ($1, COALESCE($2::date, ${TAIPEI_TODAY})) RETURNING id
           `).get(name, eventDate ?? null);
           return withCount(created.id);
         }
         const updated = await db.prepare(`
-          UPDATE albums SET name = btrim($1), event_date = COALESCE($2::date, event_date), modified_at = now()
+          UPDATE albums SET name = $1, event_date = COALESCE($2::date, event_date), modified_at = now()
           WHERE id = $3 RETURNING id
         `).get(name, eventDate ?? null, id);
         return updated ? withCount(id) : fail('找不到這本相簿');

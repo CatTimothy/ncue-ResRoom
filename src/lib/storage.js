@@ -93,13 +93,17 @@ export function createStorage({ db, dataDir }) {
     });
   }
 
-  /** 清除沒有公告或頁面引用的內文圖片；留 1 天緩衝，避免刪到還在編輯中的內容所用的圖片 */
+  /** 清除沒有公告、頁面或網站設定引用的圖片；留 1 天緩衝，避免刪到還在編輯中的內容所用的圖片 */
   async function sweepContentImages() {
     const rows = await db.prepare(`
       DELETE FROM content_images ci
       WHERE ci.created_at < now() - interval '1 day'
         AND NOT EXISTS (SELECT 1 FROM announcements a WHERE strpos(a.content, split_part(ci.stored_name, '.', 1)) > 0)
         AND NOT EXISTS (SELECT 1 FROM pages p WHERE strpos(p.source, split_part(ci.stored_name, '.', 1)) > 0)
+        AND NOT EXISTS (
+          SELECT 1 FROM site_config s
+          WHERE strpos(concat_ws(' ', s.favicon_url, s.logo_url, s.campus_url), split_part(ci.stored_name, '.', 1)) > 0
+        )
       RETURNING ci.stored_name
     `).all();
     await removeFiles(rows.map((row) => row.storedName));
@@ -114,7 +118,7 @@ export function createStorage({ db, dataDir }) {
     saveImage,
     removeFiles,
 
-    /** 公告與頁面內文用的圖片。順便清除不再使用的舊圖片，不必在每次儲存內容時都檢查 */
+    /** 公告與頁面內文、網站設定用的圖片。順便清除不再使用的舊圖片，不必在每次儲存內容時都檢查 */
     async saveContentImage(file) {
       await sweepContentImages().catch((error) => console.error(error));
       return saveImage(file, async (storedName, filename) => {

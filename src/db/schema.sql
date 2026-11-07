@@ -6,6 +6,60 @@ BEGIN
   IF to_regtype('content_format') IS NULL THEN
     CREATE TYPE content_format AS ENUM ('HTML', 'MARKDOWN');
   END IF;
+  IF to_regtype('theme_mode') IS NULL THEN
+    CREATE TYPE theme_mode AS ENUM ('SYSTEM', 'LIGHT', 'DARK');
+  END IF;
+END $$;
+
+-- 主題顏色只能有這幾個鍵，值是 #rrggbb；沒有的鍵使用 web/src/style.css 的預設值
+CREATE OR REPLACE FUNCTION is_theme_colors(colors JSONB) RETURNS BOOLEAN LANGUAGE sql IMMUTABLE AS $$
+  SELECT jsonb_typeof(colors) = 'object' AND NOT EXISTS (
+    SELECT FROM jsonb_each(colors) AS c (key, value)
+    WHERE c.key NOT IN ('background', 'surface', 'text', 'primary', 'accent')
+      OR jsonb_typeof(c.value) <> 'string'
+      OR c.value #>> '{}' !~ '^#[0-9a-f]{6}$'
+  )
+$$;
+
+-- 清單中每個物件的 field 都是符合 pattern 的文字，且不超過 max_length 字元
+CREATE OR REPLACE FUNCTION all_match(items JSONB, field TEXT, pattern TEXT, max_length INT) RETURNS BOOLEAN LANGUAGE sql IMMUTABLE AS $$
+  SELECT NOT EXISTS (
+    SELECT FROM jsonb_array_elements(items) AS item
+    WHERE jsonb_typeof(item -> field) IS DISTINCT FROM 'string'
+      OR item ->> field !~ pattern
+      OR char_length(item ->> field) > max_length
+  )
+$$;
+
+-- 多個資料表共用的欄位限制。約束名稱是「型別名稱_check」，錯誤訊息在 src/db/errors.js
+DO $$
+BEGIN
+  IF to_regtype('title_text') IS NULL THEN
+    CREATE DOMAIN title_text AS TEXT CHECK (VALUE ~ '\S' AND char_length(VALUE) <= 200);
+  END IF;
+  IF to_regtype('content_text') IS NULL THEN
+    CREATE DOMAIN content_text AS TEXT CHECK (octet_length(VALUE) <= 2097152);
+  END IF;
+  -- 上傳後的壓縮版圖片網址；NULL 表示使用網站內建的圖片
+  IF to_regtype('image_path') IS NULL THEN
+    CREATE DOMAIN image_path AS TEXT CHECK (VALUE ~ '^/files/display/[0-9a-f-]{36}\.webp$');
+  END IF;
+  IF to_regtype('theme_colors') IS NULL THEN
+    CREATE DOMAIN theme_colors AS JSONB CHECK (is_theme_colors(VALUE));
+  END IF;
+END $$;
+
+-- 寫入前去除參數所列欄位的頭尾空白，查詢就不用各自呼叫 btrim。內文（Markdown 的縮排有意義）不要列進來
+CREATE OR REPLACE FUNCTION trim_columns() RETURNS TRIGGER LANGUAGE plpgsql AS $$
+DECLARE
+  patch JSONB := '{}';
+  col TEXT;
+BEGIN
+  FOREACH col IN ARRAY TG_ARGV LOOP
+    patch := patch || jsonb_build_object(col, btrim(to_jsonb(NEW) ->> col));
+  END LOOP;
+  NEW := jsonb_populate_record(NEW, patch);
+  RETURN NEW;
 END $$;
 
 CREATE TABLE IF NOT EXISTS users (
@@ -36,27 +90,23 @@ CREATE TABLE IF NOT EXISTS sessions (
 
 CREATE TABLE IF NOT EXISTS pages (
   slug       TEXT PRIMARY KEY,
-  title      TEXT NOT NULL,
+  title      title_text NOT NULL,
   format     content_format NOT NULL,
-  source     TEXT NOT NULL,
+  source     content_text NOT NULL,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  CONSTRAINT pages_slug_check CHECK (slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$' AND char_length(slug) <= 100),
-  CONSTRAINT pages_title_check CHECK (title ~ '\S' AND char_length(title) <= 200),
-  CONSTRAINT pages_source_check CHECK (octet_length(source) <= 2097152)
+  CONSTRAINT pages_slug_check CHECK (slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$' AND char_length(slug) <= 100)
 );
 
 CREATE TABLE IF NOT EXISTS announcements (
   id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  title       TEXT NOT NULL,
-  content     TEXT NOT NULL,
+  title       title_text NOT NULL,
+  content     content_text NOT NULL,
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
   modified_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  published_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  CONSTRAINT announcements_title_check CHECK (title ~ '\S' AND char_length(title) <= 200),
-  CONSTRAINT announcements_content_check CHECK (octet_length(content) <= 2097152)
+  published_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- 升級舊版 announcements：text 改名為 content，並新增 modified_at、published_at（舊資料沿用 created_at）
+-- 升級舊版 announcements：text 改名為 content（長度限制由下方的 content_text 型別負責），並新增 modified_at、published_at（舊資料沿用 created_at）
 DO $$
 BEGIN
   IF EXISTS (
@@ -64,7 +114,7 @@ BEGIN
     WHERE table_schema = current_schema() AND table_name = 'announcements' AND column_name = 'text'
   ) THEN
     ALTER TABLE announcements RENAME COLUMN text TO content;
-    ALTER TABLE announcements RENAME CONSTRAINT announcements_text_check TO announcements_content_check;
+    ALTER TABLE announcements DROP CONSTRAINT IF EXISTS announcements_text_check;
   END IF;
 
   IF NOT EXISTS (
@@ -173,7 +223,7 @@ ALTER TABLE content_images DROP COLUMN IF EXISTS size;
 CREATE TABLE IF NOT EXISTS documents (
   id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   stored_name TEXT NOT NULL UNIQUE,
-  title       TEXT NOT NULL,
+  title       title_text NOT NULL,
   category    TEXT,
   filename    TEXT NOT NULL,
   size        INTEGER NOT NULL,
@@ -181,7 +231,6 @@ CREATE TABLE IF NOT EXISTS documents (
   CONSTRAINT documents_stored_name_check CHECK (
     stored_name ~ '\.(pdf|doc|docx|odt|xls|xlsx|ods|ppt|pptx|odp|txt)$'
   ),
-  CONSTRAINT documents_title_check CHECK (title ~ '\S' AND char_length(title) <= 200),
   CONSTRAINT documents_category_check CHECK (char_length(category) <= 100),
   CONSTRAINT documents_filename_check CHECK (char_length(filename) <= 255),
   CONSTRAINT documents_size_check CHECK (size BETWEEN 0 AND 20971520)
@@ -193,18 +242,113 @@ CREATE TABLE IF NOT EXISTS daily_visits (
   visitors INTEGER NOT NULL
 );
 
--- 全站共用的設定，一個設定一列。value 是 JSON，可以放文字或清單；格式由 src/graphql/site-config.js 檢查
-CREATE TABLE IF NOT EXISTS site_config (
-  key   TEXT PRIMARY KEY,
-  value JSONB NOT NULL
-);
+-- 舊版的 site_config 是一個設定一列（key、value），改成只有一列的資料表，欄位限制都寫在資料庫
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT FROM information_schema.columns
+    WHERE table_schema = current_schema() AND table_name = 'site_config' AND column_name = 'key'
+  ) THEN
+    ALTER TABLE site_config RENAME TO site_config_legacy;
+    ALTER INDEX site_config_pkey RENAME TO site_config_legacy_pkey;
+  END IF;
+END $$;
 
--- 預設值是網站原本的內容；只補上還沒有的設定，已經改過的不會被覆蓋
-INSERT INTO site_config (key, value) VALUES
-  ('footer_title', '"聯絡資源教室"'),
-  ('phone', '"(04)7232105"'),
-  ('extension', '"轉 5552、5556、5557"'),
-  ('hours', '"週一至週五 8:30～17:00"'),
-  ('teachers', '[{"name": "陳縈媺", "email": "chencc@cc.ncue.edu.tw", "extension": "5552"}, {"name": "何宜家", "email": "evea3@cc.ncue.edu.tw", "extension": "5557"}, {"name": "周佳慧", "email": "teresa172@cc.ncue.edu.tw", "extension": "5556"}, {"name": "何佳霖", "email": "annielinn@cc.ncue.edu.tw", "extension": "5556"}]'),
-  ('copyright', '"CatTimothy"')
-ON CONFLICT (key) DO NOTHING;
+-- 全站共用的設定，只有一列。預設值是網站原本的內容；圖片是 NULL 時使用 web/public 的內建圖片
+CREATE TABLE IF NOT EXISTS site_config (
+  id            BOOLEAN PRIMARY KEY DEFAULT true CHECK (id),
+  site_title    TEXT NOT NULL DEFAULT '國立彰化師範大學資源教室',
+  logo_text     TEXT NOT NULL DEFAULT '資源教室',
+  favicon_url   image_path,
+  logo_url      image_path,
+  campus_url    image_path,
+  campus_alt    TEXT NOT NULL DEFAULT '彰化師範大學校園：草坪後方的校舍與藍天白雲',
+  hero_prefix   TEXT NOT NULL DEFAULT '國立彰化師範大學',
+  hero_title    TEXT NOT NULL DEFAULT '資源教室',
+  hero_text     TEXT NOT NULL DEFAULT '週一至週五 8:30～17:00 開放',
+  footer_title  TEXT NOT NULL DEFAULT '聯絡資源教室',
+  phone         TEXT NOT NULL DEFAULT '(04)7232105',
+  extension     TEXT NOT NULL DEFAULT '轉 5552、5556、5557',
+  hours         TEXT NOT NULL DEFAULT '週一至週五 8:30～17:00',
+  teachers      JSONB NOT NULL DEFAULT '[{"name": "陳縈媺", "email": "chencc@cc.ncue.edu.tw", "extension": "5552"}, {"name": "何宜家", "email": "evea3@cc.ncue.edu.tw", "extension": "5557"}, {"name": "周佳慧", "email": "teresa172@cc.ncue.edu.tw", "extension": "5556"}, {"name": "何佳霖", "email": "annielinn@cc.ncue.edu.tw", "extension": "5556"}]',
+  default_theme theme_mode NOT NULL DEFAULT 'SYSTEM',
+  light_theme   theme_colors NOT NULL DEFAULT '{}',
+  dark_theme    theme_colors NOT NULL DEFAULT '{}',
+  CONSTRAINT site_config_site_title_check CHECK (site_title ~ '\S' AND char_length(site_title) <= 100),
+  CONSTRAINT site_config_logo_text_check CHECK (char_length(logo_text) <= 50),
+  CONSTRAINT site_config_campus_alt_check CHECK (campus_alt ~ '\S' AND char_length(campus_alt) <= 200),
+  CONSTRAINT site_config_hero_prefix_check CHECK (char_length(hero_prefix) <= 50),
+  CONSTRAINT site_config_hero_title_check CHECK (hero_title ~ '\S' AND char_length(hero_title) <= 50),
+  CONSTRAINT site_config_hero_text_check CHECK (char_length(hero_text) <= 200),
+  CONSTRAINT site_config_footer_title_check CHECK (footer_title ~ '\S' AND char_length(footer_title) <= 100),
+  CONSTRAINT site_config_phone_check CHECK (phone ~ '^[0-9()+ -]*[0-9][0-9()+ -]*$' AND char_length(phone) <= 50),
+  CONSTRAINT site_config_extension_check CHECK (char_length(extension) <= 100),
+  CONSTRAINT site_config_hours_check CHECK (char_length(hours) <= 200),
+  CONSTRAINT site_config_teachers_check CHECK (jsonb_typeof(teachers) = 'array' AND jsonb_array_length(teachers) <= 10),
+  CONSTRAINT site_config_teacher_name_check CHECK (all_match(teachers, 'name', '\S', 100)),
+  CONSTRAINT site_config_teacher_email_check CHECK (all_match(teachers, 'email', '^[^\s@]+@[^\s@]+$', 254)),
+  CONSTRAINT site_config_teacher_extension_check CHECK (all_match(teachers, 'extension', '', 50))
+);
+INSERT INTO site_config DEFAULT VALUES ON CONFLICT DO NOTHING;
+
+-- 頁尾的設定搬到新的資料表；版權名稱已改成固定值，不再保存
+DO $$
+BEGIN
+  IF to_regclass('site_config_legacy') IS NOT NULL THEN
+    UPDATE site_config SET
+      footer_title = COALESCE((SELECT value #>> '{}' FROM site_config_legacy WHERE key = 'footer_title'), footer_title),
+      phone = COALESCE((SELECT value #>> '{}' FROM site_config_legacy WHERE key = 'phone'), phone),
+      extension = COALESCE((SELECT value #>> '{}' FROM site_config_legacy WHERE key = 'extension'), extension),
+      hours = COALESCE((SELECT value #>> '{}' FROM site_config_legacy WHERE key = 'hours'), hours),
+      teachers = COALESCE((SELECT value FROM site_config_legacy WHERE key = 'teachers'), teachers);
+    DROP TABLE site_config_legacy;
+  END IF;
+END $$;
+
+-- 舊資料庫的欄位改用共用的型別，原本各自的 CHECK 約束就不需要了
+DO $$
+DECLARE
+  c RECORD;
+BEGIN
+  FOR c IN SELECT * FROM (VALUES
+    ('pages', 'title', 'title_text', 'pages_title_check'),
+    ('pages', 'source', 'content_text', 'pages_source_check'),
+    ('announcements', 'title', 'title_text', 'announcements_title_check'),
+    ('announcements', 'content', 'content_text', 'announcements_content_check'),
+    ('documents', 'title', 'title_text', 'documents_title_check')
+  ) AS v (tbl, col, domain, old_check)
+  LOOP
+    IF EXISTS (
+      SELECT FROM information_schema.columns
+      WHERE table_schema = current_schema() AND table_name = c.tbl AND column_name = c.col
+        AND domain_name IS DISTINCT FROM c.domain
+    ) THEN
+      EXECUTE format('ALTER TABLE %I DROP CONSTRAINT IF EXISTS %I, ALTER COLUMN %I TYPE %I', c.tbl, c.old_check, c.col, c.domain);
+    END IF;
+  END LOOP;
+END $$;
+
+-- 寫入時去除頭尾空白的欄位
+DO $$
+DECLARE
+  t RECORD;
+BEGIN
+  FOR t IN SELECT * FROM (VALUES
+    ('pages', ARRAY['title']),
+    ('announcements', ARRAY['title', 'unit', 'contact_person', 'extension']),
+    ('albums', ARRAY['name']),
+    ('photos', ARRAY['alt']),
+    ('documents', ARRAY['title', 'category']),
+    ('site_config', ARRAY['site_title', 'logo_text', 'campus_alt', 'hero_prefix', 'hero_title', 'hero_text', 'footer_title', 'phone', 'extension', 'hours'])
+  ) AS v (tbl, cols)
+  LOOP
+    EXECUTE format('DROP TRIGGER IF EXISTS %I ON %I', t.tbl || '_trim', t.tbl);
+    EXECUTE format(
+      'CREATE TRIGGER %I BEFORE INSERT OR UPDATE OF %s ON %I FOR EACH ROW EXECUTE FUNCTION trim_columns(%s)',
+      t.tbl || '_trim',
+      (SELECT string_agg(quote_ident(col), ', ') FROM unnest(t.cols) AS col),
+      t.tbl,
+      (SELECT string_agg(quote_literal(col), ', ') FROM unnest(t.cols) AS col)
+    );
+  END LOOP;
+END $$;

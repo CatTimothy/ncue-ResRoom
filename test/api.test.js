@@ -195,7 +195,7 @@ test('users never expose the password hash', async () => {
   assert.deepEqual(columns.map((c) => c.columnName), ['username', 'password_hash', 'permissions']);
 });
 
-const SAVE_CONFIG_FROM_CURRENT = 'mutation { saveSiteConfig(footerTitle: "標題", phone: "(04)1234567", extension: "", hours: "", teachers: [{ name: "x", email: "bad", extension: "" }], copyright: "資源教室") { phone } }';
+const SAVE_CONFIG_FROM_CURRENT = 'mutation { saveSiteConfig(input: { siteTitle: "t", logoText: "", campusAlt: "a", heroPrefix: "", heroTitle: "t", heroText: "", footerTitle: "標題", phone: "bad", extension: "", hours: "", teachers: [], defaultTheme: SYSTEM, lightTheme: {}, darkTheme: {} }) { phone } }';
 const CREATE_USER = 'mutation ($u: String!, $p: String!, $r: [Permission!]!) { createUser(username: $u, password: $p, permissions: $r) { username permissions } }';
 const SET_PERMISSIONS = 'mutation ($u: String!, $r: [Permission!]!) { setUserPermissions(username: $u, permissions: $r) { username permissions } }';
 const CHANGE_PASSWORD = 'mutation ($c: String!, $n: String!) { changePassword(currentPassword: $c, newPassword: $n) }';
@@ -289,17 +289,18 @@ test('each permission only allows its own operations', async () => {
   await app.db.prepare("DELETE FROM users WHERE username = 'perm.test'").run();
 });
 
-test('content images need the announcement or page permission', async () => {
+test('content images need the announcement, page or site config permission', async () => {
   const QUERY = 'mutation ($file: File!) { uploadContentImage(file: $file) { url } }';
   const upload_ = async (headers) => uploadJson(QUERY, {}, PNG, 'a.png', headers);
   assert.ok((await upload_(await loginWith('images.announcements', ['MANAGE_ANNOUNCEMENTS']))).data);
   assert.ok((await upload_(await loginWith('images.pages', ['MANAGE_PAGES']))).data);
+  assert.ok((await upload_(await loginWith('images.site', ['MANAGE_SITE_CONFIG']))).data);
   assert.equal((await upload_(await loginWith('images.albums', ['MANAGE_ALBUMS']))).errors[0].extensions.code, 'FORBIDDEN');
 });
 
 test('accounts that cannot upload are refused before the body is read', async () => {
   const QUERY = 'mutation ($file: File!) { uploadContentImage(file: $file) { url } }';
-  const refused = await upload(QUERY, {}, PNG, 'a.png', await loginWith('no.uploads', ['MANAGE_SITE_CONFIG', 'MANAGE_USERS']));
+  const refused = await upload(QUERY, {}, PNG, 'a.png', await loginWith('no.uploads', ['MANAGE_USERS']));
   assert.equal(refused.status, 403);
 });
 
@@ -637,14 +638,43 @@ test('pages reject bad input', async () => {
   assert.match((await uploadJson(SAVE_PAGE, { slug: 'a', title: 't' }, 'x', 'p.exe')).errors[0].message, /\.md/);
 });
 
-const SAVE_CONFIG = `mutation ($footerTitle: String!, $phone: String!, $extension: String!, $hours: String!, $teachers: [TeacherInput!]!, $copyright: String!) {
-  saveSiteConfig(footerTitle: $footerTitle, phone: $phone, extension: $extension, hours: $hours, teachers: $teachers, copyright: $copyright) { footerTitle phone extension hours teachers { name email extension } copyright }
-}`;
-const CONFIG = { footerTitle: '聯絡我們', phone: '(04)1234567', extension: '', hours: '', teachers: [], copyright: '資源教室' };
+const CONFIG_FIELDS = `siteTitle logoText faviconUrl logoUrl campusUrl campusAlt heroPrefix heroTitle heroText
+  footerTitle phone extension hours teachers { name email extension }
+  defaultTheme lightTheme { background surface text primary accent } darkTheme { background surface text primary accent }`;
+const CONFIG_QUERY = `{ siteConfig { ${CONFIG_FIELDS} } }`;
+const SAVE_CONFIG = `mutation ($input: SiteConfigInput!) { saveSiteConfig(input: $input) { ${CONFIG_FIELDS} } }`;
+const NO_COLORS = { background: null, surface: null, text: null, primary: null, accent: null };
+const CONFIG = {
+  siteTitle: '資源教室',
+  logoText: '資源教室',
+  faviconUrl: null,
+  logoUrl: null,
+  campusUrl: null,
+  campusAlt: '校園',
+  heroPrefix: '',
+  heroTitle: '歡迎',
+  heroText: '',
+  footerTitle: '聯絡我們',
+  phone: '(04)1234567',
+  extension: '',
+  hours: '',
+  teachers: [],
+  defaultTheme: 'SYSTEM',
+  lightTheme: NO_COLORS,
+  darkTheme: NO_COLORS,
+};
 
 test('site config starts with the original content and only logged-in users can edit it', async () => {
-  const QUERY = '{ siteConfig { footerTitle phone extension hours teachers { name email extension } copyright } }';
-  assert.deepEqual((await gql(QUERY, {}, {})).data.siteConfig, {
+  assert.deepEqual((await gql(CONFIG_QUERY, {}, {})).data.siteConfig, {
+    siteTitle: '國立彰化師範大學資源教室',
+    logoText: '資源教室',
+    faviconUrl: null,
+    logoUrl: null,
+    campusUrl: null,
+    campusAlt: '彰化師範大學校園：草坪後方的校舍與藍天白雲',
+    heroPrefix: '國立彰化師範大學',
+    heroTitle: '資源教室',
+    heroText: '週一至週五 8:30～17:00 開放',
     footerTitle: '聯絡資源教室',
     phone: '(04)7232105',
     extension: '轉 5552、5556、5557',
@@ -655,35 +685,65 @@ test('site config starts with the original content and only logged-in users can 
       { name: '周佳慧', email: 'teresa172@cc.ncue.edu.tw', extension: '5556' },
       { name: '何佳霖', email: 'annielinn@cc.ncue.edu.tw', extension: '5556' },
     ],
-    copyright: 'CatTimothy',
+    defaultTheme: 'SYSTEM',
+    lightTheme: NO_COLORS,
+    darkTheme: NO_COLORS,
   });
 
-  assert.equal((await gql(SAVE_CONFIG, CONFIG, {})).errors[0].extensions.code, 'UNAUTHENTICATED');
+  assert.equal((await gql(SAVE_CONFIG, { input: CONFIG }, {})).errors[0].extensions.code, 'UNAUTHENTICATED');
 
-  const saved = { ...CONFIG, footerTitle: ' 聯絡我們 ', teachers: [{ name: ' 王小明 ', email: ' a@example.com ', extension: ' 1234 ' }, { name: '資源教室', email: 'b@example.com', extension: '' }] };
-  const expected = { ...CONFIG, teachers: [{ name: '王小明', email: 'a@example.com', extension: '1234' }, { name: '資源教室', email: 'b@example.com', extension: '' }] };
-  assert.deepEqual((await gql(SAVE_CONFIG, saved)).data.saveSiteConfig, expected);
-  assert.deepEqual((await gql(QUERY, {}, {})).data.siteConfig, expected);
+  const { url } = (await uploadJson('mutation ($file: File!) { uploadContentImage(file: $file) { url } }', {}, PNG, 'logo.png')).data.uploadContentImage;
+  const saved = {
+    ...CONFIG,
+    siteTitle: ' 新網站 ',
+    logoUrl: url,
+    footerTitle: ' 聯絡我們 ',
+    teachers: [{ name: ' 王小明 ', email: ' a@example.com ', extension: ' 1234 ' }, { name: '資源教室', email: 'b@example.com', extension: '' }],
+    defaultTheme: 'DARK',
+    darkTheme: { ...NO_COLORS, accent: '#112233' },
+  };
+  const expected = {
+    ...saved,
+    siteTitle: '新網站',
+    footerTitle: '聯絡我們',
+    teachers: [{ name: '王小明', email: 'a@example.com', extension: '1234' }, { name: '資源教室', email: 'b@example.com', extension: '' }],
+  };
+  assert.deepEqual((await gql(SAVE_CONFIG, { input: saved })).data.saveSiteConfig, expected);
+  assert.deepEqual((await gql(CONFIG_QUERY, {}, {})).data.siteConfig, expected);
+  assert.deepEqual((await app.db.prepare('SELECT dark_theme FROM site_config').get()).darkTheme, { accent: '#112233' }, 'unset colors are not stored');
+
+  // 網站設定用到的圖片不會被當成沒人用的內文圖片清掉
+  await app.db.prepare("UPDATE content_images SET created_at = now() - interval '2 days'").run();
+  await uploadJson('mutation ($file: File!) { uploadContentImage(file: $file) { url } }', {}, PNG, 'other.png');
+  assert.equal((await fetch(`${app.base}${url}`)).status, 200);
+
+  await gql(SAVE_CONFIG, { input: { ...CONFIG, teachers: expected.teachers } });
 });
 
-test('site config stores one setting per row, keeps saved values across restarts, and restores missing settings', async () => {
+test('old key-value site config is moved to the new table', async () => {
   const database = await createDatabase();
+  const client = new pg.Client({ connectionString: database.url });
+  await client.connect();
+  await client.query(`
+    CREATE TABLE site_config (key TEXT PRIMARY KEY, value JSONB NOT NULL);
+    INSERT INTO site_config (key, value) VALUES
+      ('footer_title', '"舊標題"'), ('phone', '"(04)1111111"'), ('teachers', '[]'), ('copyright', '"舊版權"');
+  `);
+  await client.end();
   try {
-    let db = await openDb(database.url);
-    const rows = await db.prepare('SELECT key, value FROM site_config ORDER BY key').all();
-    assert.deepEqual(rows.map((row) => row.key), ['copyright', 'extension', 'footer_title', 'hours', 'phone', 'teachers']);
-    assert.equal(rows.find((row) => row.key === 'phone').value, '(04)7232105');
-    assert.equal(rows.find((row) => row.key === 'teachers').value.length, 4);
-
-    await db.prepare("UPDATE site_config SET value = '\"(04)1111111\"' WHERE key = 'phone'").run();
-    await db.prepare("DELETE FROM site_config WHERE key = 'hours'").run();
-    await db.close();
-
-    db = await openDb(database.url);
-    const again = await db.prepare('SELECT key, value FROM site_config').all();
-    assert.equal(again.find((row) => row.key === 'phone').value, '(04)1111111');
-    assert.equal(again.find((row) => row.key === 'hours').value, '週一至週五 8:30～17:00');
-    await db.close();
+    await (await openDb(database.url)).close();
+    const db = await openDb(database.url);
+    try {
+      const rows = await db.prepare('SELECT * FROM site_config').all();
+      assert.equal(rows.length, 1);
+      assert.equal(rows[0].footerTitle, '舊標題');
+      assert.equal(rows[0].phone, '(04)1111111');
+      assert.deepEqual(rows[0].teachers, []);
+      assert.equal(rows[0].hours, '週一至週五 8:30～17:00', 'settings that were not saved keep the default');
+      assert.equal(await db.prepare("SELECT to_regclass('site_config_legacy') AS t").get().then((r) => r.t), null);
+    } finally {
+      await db.close();
+    }
   } finally {
     await dropDatabase(database.name);
   }
@@ -691,9 +751,16 @@ test('site config stores one setting per row, keeps saved values across restarts
 
 test('site config rejects bad input', async () => {
   const rejects = async (change, message) => assert.match(
-    (await gql(SAVE_CONFIG, { ...CONFIG, ...change })).errors[0].message,
+    (await gql(SAVE_CONFIG, { input: { ...CONFIG, ...change } })).errors[0].message,
     message,
   );
+  await rejects({ siteTitle: '  ' }, /網站標題/);
+  await rejects({ heroTitle: 'x'.repeat(51) }, /首頁標題/);
+  await rejects({ campusAlt: ' ' }, /說明/);
+  await rejects({ logoUrl: 'https://evil.example/logo.png' }, /圖片網址/);
+  await rejects({ faviconUrl: '/files/display/../x.webp' }, /圖片網址/);
+  await rejects({ lightTheme: { ...NO_COLORS, text: 'red' } }, /#rrggbb/);
+  await rejects({ darkTheme: { ...NO_COLORS, accent: '#12345' } }, /#rrggbb/);
   await rejects({ footerTitle: '  ' }, /標題/);
   await rejects({ phone: 'javascript:alert(1)' }, /電話/);
   await rejects({ phone: '()' }, /電話/);
@@ -701,10 +768,8 @@ test('site config rejects bad input', async () => {
   await rejects({ footerTitle: 'x'.repeat(101) }, /標題/);
   await rejects({ extension: 'x'.repeat(101) }, /分機/);
   await rejects({ hours: 'x'.repeat(201) }, /開放時間/);
-  await rejects({ copyright: 'x'.repeat(101) }, /版權/);
-  await rejects({ copyright: '' }, /版權/);
   const teacher = { name: '王小明', email: 'a@example.com', extension: '' };
-  await rejects({ teachers: [{ ...teacher, email: 'not-an-email' }] }, /not-an-email/);
+  await rejects({ teachers: [{ ...teacher, email: 'not-an-email' }] }, /電子郵件/);
   await rejects({ teachers: [{ ...teacher, name: '  ' }] }, /姓名/);
   await rejects({ teachers: [{ ...teacher, extension: '1'.repeat(51) }] }, /分機/);
   await rejects({ teachers: Array(11).fill(teacher) }, /最多/);

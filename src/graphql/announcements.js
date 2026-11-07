@@ -73,14 +73,14 @@ export function createAnnouncementsResolvers({ db }) {
           if (id == null) {
             return db.prepare(`
               INSERT INTO announcements (title, content, published_at, unit, deadline, contact_person, extension)
-              VALUES (btrim($1), $2, COALESCE($3::timestamptz, now()), btrim(COALESCE($4, '')), $5::date, btrim(COALESCE($6, '')), btrim(COALESCE($7, ''))) RETURNING *
+              VALUES ($1, $2, COALESCE($3::timestamptz, now()), COALESCE($4, ''), $5::date, COALESCE($6, ''), COALESCE($7, '')) RETURNING *
             `).get(title, content, publishedAt ?? null, ...details);
           }
           const row = await db.prepare(`
             UPDATE announcements
-            SET title = btrim($1), content = $2, published_at = COALESCE($3::timestamptz, published_at),
-                unit = COALESCE(btrim($4), unit), contact_person = COALESCE(btrim($6), contact_person),
-                extension = COALESCE(btrim($7), extension),
+            SET title = $1, content = $2, published_at = COALESCE($3::timestamptz, published_at),
+                unit = COALESCE($4, unit), contact_person = COALESCE($6, contact_person),
+                extension = COALESCE($7, extension),
                 deadline = CASE WHEN $8::boolean THEN $5::date ELSE deadline END,
                 modified_at = now()
             WHERE id = $9 RETURNING *

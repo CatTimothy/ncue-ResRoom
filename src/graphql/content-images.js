@@ -1,4 +1,5 @@
 import { withPermission } from '../lib/guards.js';
+import { CONTENT_IMAGE_PERMISSIONS } from '../lib/permissions.js';
 
 export const contentImagesTypeDefs = /* GraphQL */ `
   type ContentImage {
@@ -9,14 +10,14 @@ export const contentImagesTypeDefs = /* GraphQL */ `
   }
 
   extend type Mutation {
-    "上傳公告或頁面內文要用的圖片；沒有內容引用超過 1 天的圖片，會在下次上傳時清除"
+    "上傳公告、頁面內文或網站設定要用的圖片；沒有引用超過 1 天的圖片，會在下次上傳時清除"
     uploadContentImage(file: File!): ContentImage!
   }
 `;
 
 export function createContentImagesResolvers({ storage }) {
   return {
-    Mutation: withPermission(['MANAGE_ANNOUNCEMENTS', 'MANAGE_PAGES'], {
+    Mutation: withPermission(CONTENT_IMAGE_PERMISSIONS, {
       uploadContentImage: (_, { file }) => storage.saveContentImage(file),
     }),
   };

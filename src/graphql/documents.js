@@ -37,13 +37,13 @@ export function createDocumentsResolvers({ db, storage }) {
         const bytes = Buffer.from(await file.arrayBuffer());
         return storage.save(bytes, ext, (storedName) => db.prepare(`
           INSERT INTO documents (stored_name, title, category, filename, size)
-          VALUES ($1, btrim($2), $3, $4, $5)
+          VALUES ($1, $2, $3, $4, $5)
           RETURNING *
         `).get(storedName, title, category ?? null, file.name, bytes.length));
       },
 
       async updateDocument(_, { id, title, category }) {
-        const row = await db.prepare('UPDATE documents SET title = btrim($1), category = $2 WHERE id = $3 RETURNING *')
+        const row = await db.prepare('UPDATE documents SET title = $1, category = $2 WHERE id = $3 RETURNING *')
           .get(title, category ?? null, id);
         return row ?? fail('找不到這份文件');
       },

@@ -51,7 +51,7 @@ export function createPagesResolvers({ db }) {
       async savePage(_, { slug, title, ...input }) {
         const { format, source } = await pageSource(input);
         return db.prepare(`
-          INSERT INTO pages (slug, title, format, source) VALUES ($1, btrim($2), $3, $4)
+          INSERT INTO pages (slug, title, format, source) VALUES ($1, $2, $3, $4)
           ON CONFLICT (slug) DO UPDATE SET
             title = excluded.title, format = excluded.format,
             source = excluded.source, updated_at = now()

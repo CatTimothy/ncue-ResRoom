@@ -1,21 +1,4 @@
-import { fail } from '../lib/errors.js';
 import { withPermission } from '../lib/guards.js';
-
-const EMAIL = /^[^\s@]+@[^\s@]+$/;
-const PHONE = /^[0-9()+ -]*[0-9][0-9()+ -]*$/;
-const MAX_TEACHERS = 10;
-const MAX_NAME_LENGTH = 100;
-const MAX_EXTENSION_LENGTH = 50;
-
-/** GraphQL 欄位對應資料表的 key。新增設定時：加在這裡與下方的型別，並在 schema.sql 寫入預設值 */
-const KEYS = {
-  footerTitle: 'footer_title',
-  phone: 'phone',
-  extension: 'extension',
-  hours: 'hours',
-  teachers: 'teachers',
-  copyright: 'copyright',
-};
 
 export const siteConfigTypeDefs = /* GraphQL */ `
   "頁尾列出的老師"
@@ -32,8 +15,46 @@ export const siteConfigTypeDefs = /* GraphQL */ `
     extension: String!
   }
 
-  "全站共用的設定，目前是頁尾的聯絡資訊"
+  "訪客沒有自己選擇時使用的主題；SYSTEM 依訪客裝置的設定"
+  enum ThemeMode {
+    SYSTEM
+    LIGHT
+    DARK
+  }
+
+  "主題顏色，格式為 #rrggbb；null 表示使用網站內建的顏色"
+  type ThemeColors {
+    background: String
+    surface: String
+    text: String
+    primary: String
+    accent: String
+  }
+
+  input ThemeColorsInput {
+    background: String
+    surface: String
+    text: String
+    primary: String
+    accent: String
+  }
+
+  "全站共用的設定。圖片網址是 null 時使用網站內建的圖片"
   type SiteConfig {
+    "瀏覽器分頁的標題"
+    siteTitle: String!
+    "頁首標誌旁的名稱；可留空"
+    logoText: String!
+    faviconUrl: String
+    logoUrl: String
+    "首頁主視覺的圖片"
+    campusUrl: String
+    campusAlt: String!
+    "首頁標題上方的小字；可留空"
+    heroPrefix: String!
+    heroTitle: String!
+    "首頁標題下方的文字；可留空"
+    heroText: String!
     footerTitle: String!
     phone: String!
     "電話後面的文字，例如分機；可留空"
@@ -41,8 +62,30 @@ export const siteConfigTypeDefs = /* GraphQL */ `
     "開放時間；可留空"
     hours: String!
     teachers: [Teacher!]!
-    "顯示在 Copyright © 年份 後面的名稱"
-    copyright: String!
+    defaultTheme: ThemeMode!
+    lightTheme: ThemeColors!
+    darkTheme: ThemeColors!
+  }
+
+  "欄位同 SiteConfig；圖片網址要用 uploadContentImage 取得"
+  input SiteConfigInput {
+    siteTitle: String!
+    logoText: String!
+    faviconUrl: String
+    logoUrl: String
+    campusUrl: String
+    campusAlt: String!
+    heroPrefix: String!
+    heroTitle: String!
+    heroText: String!
+    footerTitle: String!
+    phone: String!
+    extension: String!
+    hours: String!
+    teachers: [TeacherInput!]!
+    defaultTheme: ThemeMode!
+    lightTheme: ThemeColorsInput!
+    darkTheme: ThemeColorsInput!
   }
 
   extend type Query {
@@ -50,71 +93,47 @@ export const siteConfigTypeDefs = /* GraphQL */ `
   }
 
   extend type Mutation {
-    saveSiteConfig(
-      footerTitle: String!
-      phone: String!
-      extension: String!
-      hours: String!
-      teachers: [TeacherInput!]!
-      copyright: String!
-    ): SiteConfig!
+    "整份取代；格式由資料庫檢查"
+    saveSiteConfig(input: SiteConfigInput!): SiteConfig!
   }
 `;
 
-/** 資料表的列轉成 GraphQL 的欄位 */
-function toConfig(rows) {
-  const values = new Map(rows.map(({ key, value }) => [key, value]));
-  return Object.fromEntries(Object.entries(KEYS).map(([field, key]) => [field, values.get(key)]));
-}
+/** 直接寫入的欄位；teachers 與主題顏色需要先整理，另外處理 */
+const COLUMNS = [
+  'site_title', 'logo_text', 'favicon_url', 'logo_url', 'campus_url', 'campus_alt',
+  'hero_prefix', 'hero_title', 'hero_text', 'footer_title', 'phone', 'extension', 'hours', 'default_theme',
+];
 
-function cleanTeachers(teachers) {
-  if (teachers.length > MAX_TEACHERS) fail(`老師最多 ${MAX_TEACHERS} 位`);
-  return teachers.map((teacher) => {
-    const name = teacher.name.trim();
-    const email = teacher.email.trim();
-    const extension = teacher.extension.trim();
-    if (email.length > 254 || !EMAIL.test(email)) fail(`電子郵件格式不正確：${email}`);
-    if (!name || name.length > MAX_NAME_LENGTH) fail(`${email} 的姓名不可為空，且不可超過 ${MAX_NAME_LENGTH} 字元`);
-    if (extension.length > MAX_EXTENSION_LENGTH) fail(`${email} 的分機不可超過 ${MAX_EXTENSION_LENGTH} 字元`);
-    return { name, email, extension };
-  });
-}
+const toSnakeCase = (key) => key.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
 
-function cleanConfig({ footerTitle, phone, extension, hours, teachers, copyright }) {
-  const config = {
-    footerTitle: footerTitle.trim(),
-    phone: phone.trim(),
-    extension: extension.trim(),
-    hours: hours.trim(),
-    teachers: cleanTeachers(teachers),
-    copyright: copyright.trim(),
-  };
-  if (!config.footerTitle || config.footerTitle.length > 100) fail('標題不可為空，且不可超過 100 字元');
-  if (!PHONE.test(config.phone) || config.phone.length > 50) fail('電話只能有數字、括號、加號、空格與連字號，且不可超過 50 字元');
-  if (config.extension.length > 100) fail('分機不可超過 100 字元');
-  if (config.hours.length > 200) fail('開放時間不可超過 200 字元');
-  if (!config.copyright || config.copyright.length > 100) fail('版權名稱不可為空，且不可超過 100 字元');
-  return config;
-}
+// 整份設定以 JSON 傳入，由資料庫轉成資料列；文字欄位的頭尾空白由 trim_columns 觸發程序去除
+const SAVE = `
+  UPDATE site_config c SET
+    ${COLUMNS.map((column) => `${column} = r.${column}`).join(',\n    ')},
+    teachers = (
+      SELECT COALESCE(jsonb_agg(jsonb_build_object(
+        'name', btrim(t.item ->> 'name'),
+        'email', btrim(t.item ->> 'email'),
+        'extension', btrim(t.item ->> 'extension')
+      ) ORDER BY t.n), '[]')
+      FROM jsonb_array_elements(r.teachers) WITH ORDINALITY AS t (item, n)
+    ),
+    light_theme = jsonb_strip_nulls($1::jsonb -> 'light_theme'),
+    dark_theme = jsonb_strip_nulls($1::jsonb -> 'dark_theme')
+  FROM jsonb_populate_record(NULL::site_config, $1::jsonb - 'light_theme' - 'dark_theme') AS r
+  RETURNING c.*
+`;
 
 export function createSiteConfigResolvers({ db }) {
   return {
     Query: {
-      siteConfig: async () => toConfig(await db.prepare('SELECT key, value FROM site_config').all()),
+      siteConfig: () => db.prepare('SELECT * FROM site_config').get(),
     },
 
     Mutation: withPermission('MANAGE_SITE_CONFIG', {
-      async saveSiteConfig(_, input) {
-        const config = cleanConfig(input);
-        const values = Object.fromEntries(Object.entries(KEYS).map(([field, key]) => [key, config[field]]));
-        // 同一個語句寫入所有設定，不會只存到一半
-        return toConfig(await db.prepare(`
-          INSERT INTO site_config (key, value)
-          SELECT key, value FROM jsonb_each($1::jsonb)
-          ON CONFLICT (key) DO UPDATE SET value = excluded.value
-          RETURNING key, value
-        `).all(JSON.stringify(values)));
-      },
+      saveSiteConfig: (_, { input }) => db.prepare(SAVE).get(JSON.stringify(
+        Object.fromEntries(Object.entries(input).map(([key, value]) => [toSnakeCase(key), value])),
+      )),
     }),
   };
 }

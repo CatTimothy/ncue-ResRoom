@@ -36,11 +36,11 @@ export function createPhotosResolvers({ db, storage }) {
 
     Mutation: withPermission('MANAGE_ALBUMS', {
       uploadPhoto: (_, { file, alt, albumId }) => storage.saveImage(file, (storedName, filename) => db.prepare(`
-        INSERT INTO photos (stored_name, alt, album_id, filename) VALUES ($1, btrim($2), $3, $4) RETURNING *
+        INSERT INTO photos (stored_name, alt, album_id, filename) VALUES ($1, $2, $3, $4) RETURNING *
       `).get(storedName, alt, albumId, filename)),
 
       async updatePhoto(_, { id, alt, albumId }) {
-        const row = await db.prepare('UPDATE photos SET alt = btrim($1), album_id = $2 WHERE id = $3 RETURNING *')
+        const row = await db.prepare('UPDATE photos SET alt = $1, album_id = $2 WHERE id = $3 RETURNING *')
           .get(alt, albumId, id);
         return row ?? fail('找不到這張照片');
       },
