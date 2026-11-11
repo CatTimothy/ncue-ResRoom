@@ -32,6 +32,7 @@ const CONSTRAINT_MESSAGES = {
   site_config_teacher_name_check: '老師的姓名不可為空，且不可超過 100 字元',
   site_config_teacher_email_check: '老師的電子郵件格式不正確',
   site_config_teacher_extension_check: '老師的分機不可超過 50 字元',
+  site_config_navigation_check: '頁首選單的格式不正確，或有重複的連結',
 };
 
 const INVALID_VALUE_MESSAGES = {

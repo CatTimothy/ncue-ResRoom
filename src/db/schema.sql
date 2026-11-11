@@ -21,6 +21,20 @@ CREATE OR REPLACE FUNCTION is_theme_colors(colors JSONB) RETURNS BOOLEAN LANGUAG
   )
 $$;
 
+-- 頁首選單的排列：utility 與 main 兩列，各是不重複的連結路徑（例如 /about），最多 100 個
+CREATE OR REPLACE FUNCTION is_navigation(nav JSONB) RETURNS BOOLEAN LANGUAGE sql IMMUTABLE AS $$
+  SELECT jsonb_typeof(nav) = 'object'
+    AND nav - 'utility' - 'main' = '{}'
+    AND jsonb_typeof(nav -> 'utility') = 'array'
+    AND jsonb_typeof(nav -> 'main') = 'array'
+    AND (
+      SELECT COALESCE(bool_and(
+        jsonb_typeof(item) = 'string' AND item #>> '{}' ~ '^/[a-z0-9/-]*$' AND char_length(item #>> '{}') <= 200
+      ), true) AND count(*) = count(DISTINCT item) AND count(*) <= 100
+      FROM jsonb_array_elements((nav -> 'utility') || (nav -> 'main')) AS item
+    )
+$$;
+
 -- 清單中每個物件的 field 都是符合 pattern 的文字，且不超過 max_length 字元
 CREATE OR REPLACE FUNCTION all_match(items JSONB, field TEXT, pattern TEXT, max_length INT) RETURNS BOOLEAN LANGUAGE sql IMMUTABLE AS $$
   SELECT NOT EXISTS (
@@ -298,6 +312,11 @@ CREATE TABLE IF NOT EXISTS site_config (
   CONSTRAINT site_config_teacher_extension_check CHECK (all_match(teachers, 'extension', '', 50))
 );
 INSERT INTO site_config DEFAULT VALUES ON CONFLICT DO NOTHING;
+
+-- 預設的排列是網站原本的選單；沒有列出的頁面由網頁接在主選單後面
+ALTER TABLE site_config ADD COLUMN IF NOT EXISTS navigation JSONB NOT NULL
+  DEFAULT '{"utility": ["/", "/map", "/documents"], "main": ["/about", "/services", "/announcements", "/members", "/regulations", "/photos"]}'
+  CONSTRAINT site_config_navigation_check CHECK (is_navigation(navigation));
 
 -- 頁尾的設定搬到新的資料表；版權名稱已改成固定值，不再保存
 DO $$

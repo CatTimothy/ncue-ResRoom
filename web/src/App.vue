@@ -1,23 +1,42 @@
 <script setup>
 import { computed, useTemplateRef } from 'vue';
 import { useRoute } from 'vue-router';
-import { can, currentUser, fetchPages, logout, notice } from './api.js';
+import { can, currentUser, logout, notice } from './api.js';
 import SiteFooter from './components/SiteFooter.vue';
 import UserSettings from './components/UserSettings.vue';
-import { BUILT_IN_PAGES } from './router.js';
-import { siteConfig, siteImage } from './siteConfig.js';
+import { navMenus } from './navigation.js';
+import { pages, siteConfig, siteImage } from './siteConfig.js';
 import { themeMode, toggleTheme } from './theme.js';
-import { useCachedItem } from './useCachedItem.js';
+import { useDropdown } from './useDropdown.js';
 
 const route = useRoute();
 const settings = useTemplateRef('settings');
 const logo = siteImage('logoUrl');
 
-// 管理員另外新增的頁面接在主選單後面
-const { item: pages } = useCachedItem(() => 'pages', fetchPages);
-const customPages = computed(() => (pages.value ?? []).filter((page) => !(page.slug in BUILT_IN_PAGES)));
+// 管理員另外新增的頁面依網站設定的排列放進選單，沒排過的接在主選單後面
+const menus = computed(() => navMenus(siteConfig.value?.navigation, pages.value ?? []));
+
+// 窄螢幕時選單收進「選單」按鈕；帳號相關的功能收在帳號名稱的選單
+const { open: menuOpen, toggle: toggleMenu, close: closeMenu } = useDropdown('menu');
+const { open: accountOpen, toggle: toggleAccount, close: closeAccount } = useDropdown('account');
+
+const NAV_LABELS = { utility: '輔助選單', main: '主選單' };
+
+/** 連結在底下的頁面（例如單則公告）也標示；首頁 / 只符合自己 */
+const isCurrent = (to) => route.path === to || route.path.startsWith(`${to}/`);
+
+/** 點選單裡的連結就收起，連到目前所在的頁面時也一樣 */
+function closeOnLink(event, close) {
+  if (event.target.closest('a')) close();
+}
+
+function openSettings() {
+  closeAccount();
+  settings.value.open();
+}
 
 async function signOut() {
+  closeAccount();
   try {
     await logout();
   } catch (error) {
@@ -35,50 +54,84 @@ async function signOut() {
       <img :src="logo" width="776" height="140" alt="" />
       <span v-if="siteConfig?.logoText" class="wordmark__unit">{{ siteConfig.logoText }}</span>
     </RouterLink>
-    <div class="site-header__menus">
-      <nav class="utility-nav" aria-label="輔助選單">
-        <RouterLink to="/" exact-active-class="is-current">首頁</RouterLink>
-        <RouterLink to="/map" active-class="is-current">位置圖</RouterLink>
-        <RouterLink to="/documents" active-class="is-current">文件下載</RouterLink>
-        <template v-if="currentUser">
-          <RouterLink to="/pages" active-class="is-current">所有頁面</RouterLink>
-          <RouterLink v-if="can('MANAGE_SITE_CONFIG')" to="/settings" active-class="is-current">網站設定</RouterLink>
-          <span class="admin-status">{{ currentUser.username }} 已登入</span>
-          <button type="button" class="button button--small button--quiet" @click="settings.open()">帳號設定</button>
-          <button type="button" class="button button--small button--quiet" @click="signOut">登出</button>
-        </template>
-        <RouterLink
-          v-else
-          class="login-link"
-          :to="{ path: '/login', query: route.path === '/login' ? {} : { redirect: route.fullPath } }"
-        >登入</RouterLink>
-        <!-- 名稱固定，按下狀態表示是否為深色；圖示顯示按下後會切換成的主題 -->
+
+    <div class="site-header__tools">
+      <div v-if="currentUser" ref="account" class="dropdown" @click="closeOnLink($event, closeAccount)">
         <button
           type="button"
-          class="theme-toggle"
-          aria-label="深色模式"
-          :aria-pressed="themeMode === 'dark'"
-          :title="themeMode === 'dark' ? '切換成淺色模式' : '切換成深色模式'"
-          @click="toggleTheme"
+          class="account-toggle"
+          :aria-label="`帳號選單：${currentUser.username}`"
+          aria-controls="account-menu"
+          :aria-expanded="accountOpen"
+          @click="toggleAccount"
         >
-          <svg v-if="themeMode === 'dark'" viewBox="0 0 24 24" aria-hidden="true">
-            <circle cx="12" cy="12" r="4.5" />
-            <path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M4.9 19.1l1.8-1.8M17.3 6.7l1.8-1.8" />
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="12" cy="8" r="4" />
+            <path d="M4 21a8 8 0 0 1 16 0" />
           </svg>
-          <svg v-else viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5Z" />
-          </svg>
+          <span class="account-toggle__name">{{ currentUser.username }}</span>
+          <svg class="icon icon--small" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
         </button>
-      </nav>
-      <nav class="main-nav" aria-label="主選單">
-        <RouterLink to="/about" active-class="is-current">資源教室簡介</RouterLink>
-        <RouterLink to="/services" active-class="is-current">服務項目</RouterLink>
-        <RouterLink to="/announcements" active-class="is-current">最新消息</RouterLink>
-        <RouterLink to="/members" active-class="is-current">成員介紹</RouterLink>
-        <RouterLink to="/regulations" active-class="is-current">法令規章</RouterLink>
-        <RouterLink to="/photos" active-class="is-current">活動剪影</RouterLink>
-        <RouterLink v-for="page in customPages" :key="page.slug" :to="`/pages/${page.slug}`" active-class="is-current">{{ page.title }}</RouterLink>
-      </nav>
+        <ul v-show="accountOpen" id="account-menu" class="dropdown__menu" aria-label="帳號選單">
+          <li><RouterLink to="/pages" active-class="is-current">所有頁面</RouterLink></li>
+          <li v-if="can('MANAGE_SITE_CONFIG')"><RouterLink to="/settings" active-class="is-current">網站設定</RouterLink></li>
+          <li><button type="button" @click="openSettings">帳號設定</button></li>
+          <li><button type="button" @click="signOut">登出</button></li>
+        </ul>
+      </div>
+      <RouterLink
+        v-else
+        class="login-link"
+        :to="{ path: '/login', query: route.path === '/login' ? {} : { redirect: route.fullPath } }"
+      >登入</RouterLink>
+
+      <!-- 名稱固定，按下狀態表示是否為深色；圖示顯示按下後會切換成的主題 -->
+      <button
+        type="button"
+        class="icon-button"
+        aria-label="深色模式"
+        :aria-pressed="themeMode === 'dark'"
+        :title="themeMode === 'dark' ? '切換成淺色模式' : '切換成深色模式'"
+        @click="toggleTheme"
+      >
+        <svg v-if="themeMode === 'dark'" class="icon" viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="12" cy="12" r="4.5" />
+          <path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M4.9 19.1l1.8-1.8M17.3 6.7l1.8-1.8" />
+        </svg>
+        <svg v-else class="icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5Z" />
+        </svg>
+      </button>
+    </div>
+
+    <!-- 寬螢幕時按鈕隱藏、選單直接排在頁首；display: contents 讓按鈕與選單各自放進頁首的格線 -->
+    <div ref="menu" class="site-header__nav">
+      <button
+        type="button"
+        class="menu-toggle"
+        aria-label="選單"
+        aria-controls="site-menus"
+        :aria-expanded="menuOpen"
+        @click="toggleMenu"
+      >
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path v-if="menuOpen" d="M6 6l12 12M18 6 6 18" />
+          <path v-else d="M4 7h16M4 12h16M4 17h16" />
+        </svg>
+        <span class="menu-toggle__label">選單</span>
+      </button>
+      <div id="site-menus" class="site-header__menus" :class="{ 'is-open': menuOpen }" @click="closeOnLink($event, closeMenu)">
+        <template v-for="(label, row) in NAV_LABELS" :key="row">
+          <nav v-if="menus[row].length" :class="`${row}-nav`" :aria-label="label">
+            <RouterLink
+              v-for="link in menus[row]"
+              :key="link.to"
+              :to="link.to"
+              :class="{ 'is-current': isCurrent(link.to) }"
+            >{{ link.label }}</RouterLink>
+          </nav>
+        </template>
+      </div>
     </div>
   </header>
 

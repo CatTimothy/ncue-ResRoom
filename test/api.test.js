@@ -14,6 +14,7 @@ import { seedContent } from '../src/db/seed.js';
 import { createStorage } from '../src/lib/storage.js';
 import { saveUser } from '../src/lib/password.js';
 import { ALL_PERMISSIONS } from '../src/lib/permissions.js';
+import { DEFAULT_NAVIGATION } from '../web/src/navigation.js';
 import { PERMISSIONS as WEB_PERMISSIONS } from '../web/src/permissions.js';
 
 const USER = { username: 'admin', password: 'admin-password-123' };
@@ -197,7 +198,7 @@ test('users never expose the password hash', async () => {
   assert.deepEqual(columns.map((c) => c.columnName), ['username', 'password_hash', 'permissions']);
 });
 
-const SAVE_CONFIG_FROM_CURRENT = 'mutation { saveSiteConfig(input: { siteTitle: "t", logoText: "", campusAlt: "a", heroPrefix: "", heroTitle: "t", heroText: "", footerTitle: "標題", phone: "bad", extension: "", hours: "", teachers: [], defaultTheme: SYSTEM, lightTheme: {}, darkTheme: {} }) { phone } }';
+const SAVE_CONFIG_FROM_CURRENT = 'mutation { saveSiteConfig(input: { siteTitle: "t", logoText: "", campusAlt: "a", heroPrefix: "", heroTitle: "t", heroText: "", footerTitle: "標題", phone: "bad", extension: "", hours: "", teachers: [], defaultTheme: SYSTEM, lightTheme: {}, darkTheme: {}, navigation: { utility: [], main: [] } }) { phone } }';
 const CREATE_USER = 'mutation ($u: String!, $p: String!, $r: [Permission!]!) { createUser(username: $u, password: $p, permissions: $r) { username permissions } }';
 const SET_PERMISSIONS = 'mutation ($u: String!, $r: [Permission!]!) { setUserPermissions(username: $u, permissions: $r) { username permissions } }';
 const CHANGE_PASSWORD = 'mutation ($c: String!, $n: String!) { changePassword(currentPassword: $c, newPassword: $n) }';
@@ -649,7 +650,8 @@ test('pages reject bad input', async () => {
 
 const CONFIG_FIELDS = `siteTitle logoText faviconUrl logoUrl campusUrl campusAlt heroPrefix heroTitle heroText
   footerTitle phone extension hours teachers { name email extension }
-  defaultTheme lightTheme { background surface text primary accent } darkTheme { background surface text primary accent }`;
+  defaultTheme lightTheme { background surface text primary accent } darkTheme { background surface text primary accent }
+  navigation { utility main }`;
 const CONFIG_QUERY = `{ siteConfig { ${CONFIG_FIELDS} } }`;
 const SAVE_CONFIG = `mutation ($input: SiteConfigInput!) { saveSiteConfig(input: $input) { ${CONFIG_FIELDS} } }`;
 const NO_COLORS = { background: null, surface: null, text: null, primary: null, accent: null };
@@ -671,6 +673,7 @@ const CONFIG = {
   defaultTheme: 'SYSTEM',
   lightTheme: NO_COLORS,
   darkTheme: NO_COLORS,
+  navigation: { utility: ['/'], main: ['/about'] },
 };
 
 test('site config starts with the original content and only logged-in users can edit it', async () => {
@@ -697,6 +700,7 @@ test('site config starts with the original content and only logged-in users can 
     defaultTheme: 'SYSTEM',
     lightTheme: NO_COLORS,
     darkTheme: NO_COLORS,
+    navigation: DEFAULT_NAVIGATION, // 網頁在設定載入前用同一份排列
   });
 
   assert.equal((await gql(SAVE_CONFIG, { input: CONFIG }, {})).errors[0].extensions.code, 'UNAUTHENTICATED');
@@ -710,6 +714,7 @@ test('site config starts with the original content and only logged-in users can 
     teachers: [{ name: ' 王小明 ', email: ' a@example.com ', extension: ' 1234 ' }, { name: '資源教室', email: 'b@example.com', extension: '' }],
     defaultTheme: 'DARK',
     darkTheme: { ...NO_COLORS, accent: '#112233' },
+    navigation: { utility: ['/documents'], main: ['/pages/a-b', '/', '/photos'] },
   };
   const expected = {
     ...saved,
@@ -727,6 +732,17 @@ test('site config starts with the original content and only logged-in users can 
   assert.equal((await fetch(`${app.base}${url}`)).status, 200);
 
   await gql(SAVE_CONFIG, { input: { ...CONFIG, teachers: expected.teachers } });
+});
+
+test('site config rejects a malformed navigation', async () => {
+  for (const navigation of [
+    { utility: ['/'], main: ['/'] },
+    { utility: [], main: ['about'] },
+    { utility: [], main: ['/a b'] },
+    { utility: [], main: Array.from({ length: 101 }, (_, i) => `/pages/p${i}`) },
+  ]) {
+    assert.match((await gql(SAVE_CONFIG, { input: { ...CONFIG, navigation } })).errors[0].message, /頁首選單/, JSON.stringify(navigation));
+  }
 });
 
 test('old key-value site config is moved to the new table', async () => {

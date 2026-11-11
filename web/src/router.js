@@ -1,6 +1,7 @@
 import { nextTick } from 'vue';
 import { createRouter, createWebHistory } from 'vue-router';
 import { canAnimate } from './motion.js';
+import { BUILT_IN_PAGES, NAV_LINKS } from './navigation.js';
 import { focusMain, setTitle } from './page.js';
 import Album from './views/Album.vue';
 import Albums from './views/Albums.vue';
@@ -14,15 +15,6 @@ import Pages from './views/Pages.vue';
 import PageView from './views/PageView.vue';
 import SiteSettings from './views/SiteSettings.vue';
 
-/** 在選單上有固定位置的頁面 */
-export const BUILT_IN_PAGES = {
-  about: '資源教室簡介',
-  services: '服務項目',
-  members: '成員介紹',
-  regulations: '法令規章',
-  map: '位置圖',
-};
-
 export const router = createRouter({
   history: createWebHistory(),
   routes: [
@@ -33,11 +25,11 @@ export const router = createRouter({
       props: { slug, fallbackTitle: title },
       meta: { title },
     })),
-    { path: '/announcements', component: Announcements, meta: { title: '最新消息' } },
-    { path: '/announcements/:id', component: Announcement, props: true, meta: { title: '最新消息' } },
-    { path: '/photos', component: Albums, meta: { title: '活動剪影' } },
-    { path: '/photos/:id', component: Album, props: true, meta: { title: '活動剪影' } },
-    { path: '/documents', component: Documents, meta: { title: '文件下載' } },
+    { path: '/announcements', component: Announcements, meta: { title: NAV_LINKS['/announcements'] } },
+    { path: '/announcements/:id', component: Announcement, props: true, meta: { title: NAV_LINKS['/announcements'] } },
+    { path: '/photos', component: Albums, meta: { title: NAV_LINKS['/photos'] } },
+    { path: '/photos/:id', component: Album, props: true, meta: { title: NAV_LINKS['/photos'] } },
+    { path: '/documents', component: Documents, meta: { title: NAV_LINKS['/documents'] } },
     { path: '/pages', component: Pages, meta: { title: '所有頁面' } },
     { path: '/pages/:slug', component: PageView, props: true },
     { path: '/settings', component: SiteSettings, meta: { title: '網站設定' } },

@@ -1,5 +1,5 @@
 import { computed, watchEffect } from 'vue';
-import { fetchSiteConfig } from './api.js';
+import { fetchPages, fetchSiteConfig } from './api.js';
 import { pageName } from './page.js';
 import { useCachedItem } from './useCachedItem.js';
 
@@ -12,6 +12,9 @@ export const DEFAULT_IMAGES = {
 
 /** 全站設定，所有元件共用一份；載入前是 null */
 export const { item: siteConfig } = useCachedItem(() => 'site-config', fetchSiteConfig);
+
+/** 所有頁面的 slug 與標題，頁首選單與網站設定共用一份 */
+export const { item: pages } = useCachedItem(() => 'pages', fetchPages);
 
 /** 設定的圖片網址，沒有設定時用內建的圖片 */
 export const siteImage = (field) => computed(() => siteConfig.value?.[field] ?? DEFAULT_IMAGES[field]);

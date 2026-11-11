@@ -40,6 +40,18 @@ export const siteConfigTypeDefs = /* GraphQL */ `
     accent: String
   }
 
+  "頁首選單的排列，值是連結的路徑，例如 /about；自訂頁面是 /pages/<slug>。沒有列出的頁面接在主選單後面"
+  type Navigation {
+    "頁首上方較小的一列"
+    utility: [String!]!
+    main: [String!]!
+  }
+
+  input NavigationInput {
+    utility: [String!]!
+    main: [String!]!
+  }
+
   "全站共用的設定。圖片網址是 null 時使用網站內建的圖片"
   type SiteConfig {
     "瀏覽器分頁的標題"
@@ -66,6 +78,7 @@ export const siteConfigTypeDefs = /* GraphQL */ `
     defaultTheme: ThemeMode!
     lightTheme: ThemeColors!
     darkTheme: ThemeColors!
+    navigation: Navigation!
   }
 
   "欄位同 SiteConfig；圖片網址要用 uploadContentImage 取得"
@@ -87,6 +100,7 @@ export const siteConfigTypeDefs = /* GraphQL */ `
     defaultTheme: ThemeMode!
     lightTheme: ThemeColorsInput!
     darkTheme: ThemeColorsInput!
+    navigation: NavigationInput!
   }
 
   extend type Query {
@@ -102,7 +116,7 @@ export const siteConfigTypeDefs = /* GraphQL */ `
 /** 直接寫入的欄位；teachers 與主題顏色需要先整理，另外處理 */
 const COLUMNS = [
   'site_title', 'logo_text', 'favicon_url', 'logo_url', 'campus_url', 'campus_alt',
-  'hero_prefix', 'hero_title', 'hero_text', 'footer_title', 'phone', 'extension', 'hours', 'default_theme',
+  'hero_prefix', 'hero_title', 'hero_text', 'footer_title', 'phone', 'extension', 'hours', 'default_theme', 'navigation',
 ];
 
 // 整份設定以 JSON 傳入，由資料庫轉成資料列；文字欄位的頭尾空白由 trim_columns 觸發程序去除

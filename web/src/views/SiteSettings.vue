@@ -4,7 +4,8 @@ import { useRouter } from 'vue-router';
 import { can, currentUser, saveSiteConfig, userChecked } from '../api.js';
 import EditorForm from '../components/EditorForm.vue';
 import ImageField from '../components/ImageField.vue';
-import { DEFAULT_IMAGES, siteConfig } from '../siteConfig.js';
+import NavEditor from '../components/NavEditor.vue';
+import { DEFAULT_IMAGES, pages, siteConfig } from '../siteConfig.js';
 import { defaultColors, THEME_COLORS } from '../theme.js';
 import { useLeaveGuard } from '../useEditMode.js';
 import { useEditor } from '../useEditor.js';
@@ -77,6 +78,11 @@ const leave = () => router.push('/');
           <ImageField v-model="form.logoUrl" label="標誌" :fallback="DEFAULT_IMAGES.logoUrl" hint="顯示在頁首，高度約 44 像素；建議用透明背景的圖片。" @error="error = $event" />
           <ImageField v-model="form.faviconUrl" label="網站圖示（favicon）" :fallback="DEFAULT_IMAGES.faviconUrl" hint="顯示在瀏覽器分頁上，建議用正方形的圖片。" @error="error = $event" />
         </div>
+      </fieldset>
+
+      <fieldset class="settings-group">
+        <legend>頁首選單</legend>
+        <NavEditor v-model="form.navigation" :pages="pages ?? []" />
       </fieldset>
 
       <fieldset class="settings-group">

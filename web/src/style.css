@@ -159,6 +159,16 @@ h2 {
   transform: none;
 }
 
+/* 畫面上看不到，但螢幕報讀軟體讀得到 */
+.visually-hidden {
+  position: absolute;
+  overflow: hidden;
+  width: 1px;
+  height: 1px;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 .button {
   min-height: 3rem;
   padding: 0.25rem 1.5rem;
@@ -422,6 +432,70 @@ h2 {
   width: 3rem;
   min-height: 2.25rem;
   padding: 0.125rem;
+}
+
+/* 頁首選單的排列：連結做成和頁首一樣的黃底膠囊，可以拖動 */
+.nav-editor {
+  display: grid;
+  gap: 1rem;
+}
+
+.nav-editor__hint {
+  margin: 0;
+  color: var(--text-soft);
+}
+
+.nav-editor__row {
+  display: grid;
+  gap: 0.375rem;
+}
+
+.nav-editor__label {
+  font-weight: 600;
+}
+
+.nav-editor__list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+  min-height: 3.5rem;
+  margin: 0;
+  padding: 0.5rem;
+  border-radius: 0.75rem;
+  background: var(--accent);
+  color: var(--on-accent);
+  list-style: none;
+}
+
+.nav-editor.is-dragging .nav-editor__list {
+  outline: 2px dashed var(--on-accent);
+  outline-offset: -0.375rem;
+}
+
+.nav-editor.is-dragging {
+  cursor: grabbing;
+}
+
+/* 外觀同頁首的按鈕（見頁首的部分），這裡只加上拖動用的設定 */
+.nav-editor .nav-chip {
+  padding-left: 0.5rem;
+  color: inherit;
+  cursor: grab;
+  touch-action: none; /* 觸控時拖動連結，不捲動畫面 */
+  user-select: none;
+}
+
+.nav-editor .nav-chip.is-dragging {
+  background: var(--on-accent);
+  color: var(--accent);
+  cursor: grabbing;
+  opacity: 0.85;
+}
+
+.nav-editor__empty {
+  align-self: center;
+  padding: 0 0.5rem;
+  opacity: 0.8;
 }
 
 /* 直接在頁面上編輯文章 */
@@ -724,15 +798,20 @@ h2 {
   content: '';
 }
 
-/* 頁首 */
+/*
+  頁首：寬螢幕時標誌在左；右邊第一列是小選單與帳號、主題按鈕，
+  第二列的主選單延伸到按鈕下方，使用整個右側的寬度
+*/
 .site-header {
   position: relative;
-  z-index: 1;
-  display: flex;
-  flex-wrap: wrap;
+  z-index: 5; /* 展開的選單要蓋過內容，包括固定在上方的多選工具列 */
+  display: grid;
+  grid-template-areas:
+    'brand utility tools'
+    'brand main main';
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0.25rem 1.5rem;
   align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem 2rem;
   padding: 1.25rem var(--content-right) 1rem var(--content-left);
   background: var(--accent);
   color: var(--on-accent);
@@ -740,9 +819,11 @@ h2 {
 
 .wordmark {
   display: flex;
+  grid-area: brand;
   flex-wrap: wrap;
   gap: 0.25rem 1rem;
   align-items: center;
+  min-width: 0;
   color: inherit;
   line-height: 1.25;
   text-decoration: none;
@@ -750,7 +831,10 @@ h2 {
 
 .wordmark img {
   width: auto;
+  max-width: 100%;
   height: 2.75rem;
+  object-fit: contain;
+  object-position: left;
 }
 
 .wordmark__unit {
@@ -771,11 +855,20 @@ h2 {
   }
 }
 
+.site-header__tools {
+  display: flex;
+  grid-area: tools;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+/* 按鈕與選單直接放進頁首的格線 */
+.site-header__nav {
+  display: contents;
+}
+
 .site-header__menus {
-  display: grid;
-  gap: 0.25rem;
-  justify-items: end;
-  padding-right: 3rem;
+  display: contents;
 }
 
 .site-header nav {
@@ -794,10 +887,12 @@ h2 {
 }
 
 .utility-nav {
+  grid-area: utility;
   font-size: 0.9375rem;
 }
 
 .main-nav {
+  grid-area: main;
   font-size: 1.0625rem;
 }
 
@@ -811,39 +906,9 @@ h2 {
   color: var(--accent);
 }
 
-.site-header .button--quiet {
-  border-color: var(--on-accent);
-  color: var(--on-accent);
-}
-
-.site-header .button--quiet:hover:not(:disabled) {
-  background: var(--on-accent);
-  color: var(--accent);
-}
-
-/* 主題切換：固定在頁首右上角的圖示按鈕，選單右側留出它的位置 */
-.theme-toggle {
-  position: absolute;
-  top: 1.25rem;
-  right: var(--content-right);
-  display: grid;
-  place-items: center;
-  width: 2.5rem;
-  height: 2.5rem;
-  padding: 0;
-  border: 2px solid currentcolor;
-  border-radius: 50%;
-  background: transparent;
-  color: var(--on-accent);
-  cursor: pointer;
-}
-
-.theme-toggle:hover {
-  background: var(--on-accent);
-  color: var(--accent);
-}
-
-.theme-toggle svg {
+/* 頁首右上角的按鈕：帳號、登入、主題切換、窄螢幕的選單 */
+.icon {
+  flex: none;
   width: 1.375rem;
   height: 1.375rem;
   fill: none;
@@ -853,38 +918,167 @@ h2 {
   stroke-width: 2;
 }
 
-.admin-status {
-  margin-left: 0.75rem;
+.icon--small {
+  width: 1rem;
+  height: 1rem;
 }
 
-.site-header nav a.login-link {
-  margin-left: 0.5rem;
+:is(.account-toggle, .menu-toggle, .icon-button, .login-link, .nav-chip) {
+  display: inline-flex;
+  gap: 0.375rem;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.5rem;
+  height: 2.5rem;
+  padding: 0 0.875rem;
   border: 2px solid currentcolor;
+  border-radius: 1.25rem;
+  background: transparent;
+  color: var(--on-accent);
+  font: inherit;
+  font-size: 1rem;
+  white-space: nowrap;
+  text-decoration: none;
+  cursor: pointer;
 }
 
-.site-header nav a.login-link:hover {
+.icon-button {
+  padding: 0;
+  border-radius: 50%;
+}
+
+:is(.account-toggle, .menu-toggle, .icon-button, .login-link, .nav-chip):hover,
+:is(.account-toggle, .menu-toggle)[aria-expanded='true'] {
   background: var(--on-accent);
   color: var(--accent);
-  text-decoration: none;
 }
 
-@media (max-width: 56rem) {
+.account-toggle__name {
+  overflow: hidden;
+  max-width: 10rem;
+  text-overflow: ellipsis;
+}
+
+/* 帳號名稱展開的選單 */
+.dropdown {
+  position: relative;
+}
+
+.dropdown__menu {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  right: 0;
+  min-width: 11rem;
+  margin: 0;
+  padding: 0.375rem;
+  border: 2px solid var(--text);
+  border-radius: 0.75rem;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0.3rem 0.3rem 0 var(--accent-deep);
+  list-style: none;
+}
+
+.dropdown__menu :is(a, button) {
+  display: block;
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: 0;
+  border-radius: 0.5rem;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.dropdown__menu :is(a, button):hover {
+  background: var(--background);
+  text-decoration: underline;
+}
+
+.dropdown__menu a.is-current {
+  background: var(--text);
+  color: var(--on-text);
+}
+
+.dropdown__menu li:last-child {
+  margin-top: 0.25rem;
+  padding-top: 0.25rem;
+  border-top: 1px solid var(--line);
+}
+
+.menu-toggle {
+  display: none;
+  grid-area: toggle;
+}
+
+/* 窄螢幕：選單收進「選單」按鈕，展開成頁首下方的直式清單 */
+@media (max-width: 64rem) {
+  .site-header {
+    grid-template-areas: 'brand tools toggle';
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    gap: 0.5rem;
+    padding-top: 1rem;
+    padding-bottom: 1rem;
+  }
+
+  .menu-toggle {
+    display: inline-flex;
+  }
+
   .site-header__menus {
-    justify-items: start;
-    width: 100%;
+    position: absolute;
+    top: 100%;
+    right: 0;
+    left: 0;
+    display: none;
+    gap: 0;
+    justify-items: stretch;
+    max-height: calc(100dvh - 6rem);
+    overflow-y: auto;
+    padding: 0.5rem var(--content-right) 1rem var(--content-left);
+    border-top: 2px solid var(--on-accent);
+    background: var(--accent);
+    box-shadow: 0 0.75rem 1rem -0.5rem rgb(0 0 0 / 0.35);
+  }
+
+  .site-header__menus.is-open {
+    display: grid;
+  }
+
+  /* 收進下拉清單後依序排列，不再使用頁首格線的位置 */
+  .site-header__menus nav {
+    grid-area: auto;
   }
 
   .site-header nav {
-    justify-content: flex-start;
+    flex-direction: column;
+    gap: 0.125rem;
+    align-items: stretch;
   }
 
-  /* 選單換到標誌下方時，改由標誌那一行讓出右上角 */
-  .site-header__menus {
-    padding-right: 0;
+  .site-header nav a {
+    padding: 0.625rem 0.875rem;
+    font-size: 1.0625rem;
   }
 
-  .wordmark {
-    padding-right: 3rem;
+  .site-header nav + nav {
+    margin-top: 0.5rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid currentcolor;
+  }
+}
+
+/* 很窄時按鈕只留圖示；按鈕的名稱由 aria-label 提供 */
+@media (max-width: 30rem) {
+  :is(.account-toggle__name, .menu-toggle__label) {
+    display: none;
+  }
+
+  :is(.account-toggle, .menu-toggle) {
+    padding: 0 0.5rem;
   }
 }
 

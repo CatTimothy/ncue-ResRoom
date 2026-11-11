@@ -124,7 +124,8 @@ export const recordVisit = () => query('mutation { recordVisit }');
 const THEME_FIELDS = 'background surface text primary accent';
 const SITE_CONFIG_FIELDS = `siteTitle logoText faviconUrl logoUrl campusUrl campusAlt heroPrefix heroTitle heroText
   footerTitle phone extension hours teachers { name email extension }
-  defaultTheme lightTheme { ${THEME_FIELDS} } darkTheme { ${THEME_FIELDS} }`;
+  defaultTheme lightTheme { ${THEME_FIELDS} } darkTheme { ${THEME_FIELDS} }
+  navigation { utility main }`;
 
 export const fetchSiteConfig = () => query(`{ siteConfig { ${SITE_CONFIG_FIELDS} } }`);
 
