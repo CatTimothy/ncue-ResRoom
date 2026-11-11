@@ -37,7 +37,7 @@ import { MdEditor, NormalToolbar } from 'md-editor-v3';
 import 'md-editor-v3/lib/style.css';
 import { ref, useTemplateRef } from 'vue';
 import { can, uploadContentImage, uploadDocuments } from '../api.js';
-import { DOCUMENT_ACCEPT, fileBaseName, markdownLink } from '../format.js';
+import { DOCUMENT_ACCEPT, markdownLink, parseDocumentName } from '../format.js';
 import { themeMode } from '../theme.js';
 
 const props = defineProps({
@@ -54,7 +54,6 @@ const toolbars = [
   'link', 0, ...(canUploadDocuments ? [1] : []), 'table', 'code', '-',
   'revoke', 'next', '=', 'preview',
 ];
-const MAX_DOCUMENT_TITLE_LENGTH = 200;
 
 const editor = useTemplateRef('editor');
 const fileInput = useTemplateRef('fileInput');
@@ -103,11 +102,7 @@ async function onUploadImg(files, callback) {
 
 /** 透過文件 API 上傳，所以也會列在「文件下載」頁；內容裡插入下載連結 */
 async function documentLines(files) {
-  const documents = await uploadAll(files, (list) => uploadDocuments(list.map((file) => ({
-    file,
-    title: fileBaseName(file.name).slice(0, MAX_DOCUMENT_TITLE_LENGTH),
-    category: null,
-  }))));
+  const documents = await uploadAll(files, (list) => uploadDocuments(list.map((file) => ({ file, ...parseDocumentName(file.name) }))));
   return documents.map(({ title, url }) => markdownLink(title, url));
 }
 

@@ -176,6 +176,8 @@ test('every mutation except login, logout and the view counters requires a sessi
     'mutation { updateDocument(id: 1, title: "a") { id } }',
     'mutation { deletePhoto(id: 1) }',
     'mutation { deleteDocument(id: 1) }',
+    'mutation { deleteDocuments(ids: [1]) }',
+    'mutation { setDocumentsCategory(ids: [1], category: "a") }',
   ];
   for (const query of blocked) {
     for (const headers of [{}, { Cookie: 'session=forged' }]) {
@@ -259,7 +261,7 @@ test('each permission only allows its own operations', async () => {
   const OPERATIONS = {
     MANAGE_ANNOUNCEMENTS: ['mutation { saveAnnouncement(title: "t", content: "c") { id } }', 'mutation { deleteAnnouncement(id: "0") }'],
     MANAGE_ALBUMS: ['mutation { saveAlbum(name: "相簿") { id } }', 'mutation { deleteAlbum(id: "0") }', 'mutation { deletePhoto(id: "0") }'],
-    MANAGE_DOCUMENTS: ['mutation { deleteDocument(id: "0") }'],
+    MANAGE_DOCUMENTS: ['mutation { deleteDocument(id: "0") }', 'mutation { deleteDocuments(ids: ["0"]) }', 'mutation { setDocumentsCategory(ids: ["0"]) }'],
     MANAGE_PAGES: ['mutation { savePage(slug: "perm-test", title: "t", format: MARKDOWN, content: "c") { slug } }', 'mutation { deletePage(slug: "perm-test") }'],
     MANAGE_SITE_CONFIG: [SAVE_CONFIG_FROM_CURRENT],
     MANAGE_USERS: ['{ users { username } }', 'mutation { createUser(username: "perm.test", password: "perm-password-123", permissions: []) { username } }', 'mutation { setUserPermissions(username: "nobody.here", permissions: []) { username } }'],
@@ -1235,6 +1237,30 @@ test('documents can be edited', async () => {
   assert.deepEqual((await gql(UPDATE, { id: doc.id, title: ' 新標題 ', category: '112' })).data.updateDocument, { title: '新標題', category: '112' });
   assert.match((await gql(UPDATE, { id: '99999', title: 'x' })).errors[0].message, /找不到/);
   await gql(`mutation { deleteDocument(id: ${doc.id}) }`);
+});
+
+test('documents can be recategorized and deleted in bulk', async () => {
+  const upload = async (name) => (await uploadJson(UPLOAD_DOCUMENT, { title: name }, name, `${name}.pdf`)).data.uploadDocument;
+  const docs = [await upload('a'), await upload('b'), await upload('c')];
+  const ids = docs.map((doc) => doc.id);
+  const before = uploadsCount();
+
+  const SET = 'mutation ($ids: [ID!]!, $category: String) { setDocumentsCategory(ids: $ids, category: $category) }';
+  assert.equal((await gql(SET, { ids: [ids[0], ids[1], '99999'], category: ' 115學年度第一學期 ' })).data.setDocumentsCategory, 2);
+  const categories = async () => Object.fromEntries((await gql('{ documents(limit: 100) { id category } }')).data.documents
+    .filter((doc) => ids.includes(doc.id)).map((doc) => [doc.id, doc.category]));
+  assert.deepEqual(await categories(), { [ids[0]]: '115學年度第一學期', [ids[1]]: '115學年度第一學期', [ids[2]]: null });
+  assert.equal((await gql(SET, { ids: [ids[0]], category: null })).data.setDocumentsCategory, 1);
+  assert.equal((await categories())[ids[0]], null);
+  assert.match((await gql(SET, { ids, category: 'x'.repeat(101) })).errors[0].message, /category/);
+  assert.match((await gql(SET, { ids: ['abc'] })).errors[0].message, /資料格式/);
+
+  const DELETE = 'mutation ($ids: [ID!]!) { deleteDocuments(ids: $ids) }';
+  assert.equal((await gql(DELETE, { ids: [] })).data.deleteDocuments, 0);
+  assert.equal((await gql(DELETE, { ids: [ids[0], ids[1], '99999'] })).data.deleteDocuments, 2);
+  assert.equal(uploadsCount(), before - 2);
+  assert.deepEqual(Object.keys(await categories()), [ids[2]]);
+  await gql(DELETE, { ids: [ids[2]] });
 });
 
 test('seed content creates pages and documents once and never overwrites', async () => {

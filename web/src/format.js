@@ -150,11 +150,43 @@ export function fromRocInput(text, withTime = false) {
   return withTime ? `${iso}T${pad(hour)}:${pad(minute)}` : iso;
 }
 
+// 開頭的學年與學期，例如「110(1)」或全形括號的「109（2）」
+const TERM_PREFIX = /^\s*(\d{2,3})\s*[(（]\s*([12])\s*[)）]\s*/;
+
 /** 拆開「110(1)校外參訪」這類相簿名稱；不符合時 term 為 null */
 export function parseAlbum(name) {
-  const match = /^\s*(\d{2,3})\s*[(（]\s*([12])\s*[)）]\s*(.+?)\s*$/.exec(name);
-  if (!match) return { term: null, name: name.trim() };
-  return { term: `${match[1]} 學年度第 ${match[2]} 學期`, name: match[3] };
+  const match = TERM_PREFIX.exec(name);
+  const rest = match && name.slice(match[0].length).trim();
+  if (!rest) return { term: null, name: name.trim() };
+  return { term: `${match[1]} 學年度第 ${match[2]} 學期`, name: rest };
+}
+
+/** 文件標題的長度上限，要和資料庫的 title_text 一致 */
+export const MAX_DOCUMENT_TITLE_LENGTH = 200;
+
+/** 文件的學期分類，例如「115學年度第一學期」 */
+const termCategory = (year, term) => `${year}學年度第${term === '1' ? '一' : '二'}學期`;
+
+/**
+ * 由檔名決定文件的標題與分類：「115(1)申請表.pdf」的分類是「115學年度第一學期」，標題是「申請表」。
+ * 檔名開頭沒有學期時 category 為 null
+ */
+export function parseDocumentName(filename) {
+  const base = fileBaseName(filename).trim();
+  const match = TERM_PREFIX.exec(base);
+  const rest = match && base.slice(match[0].length).trim();
+  return {
+    title: (rest || base).slice(0, MAX_DOCUMENT_TITLE_LENGTH),
+    category: rest ? termCategory(match[1], match[2]) : null,
+  };
+}
+
+/** 手動輸入的分類：「115(1)」或「115-1」統一寫成「115學年度第一學期」，空白時為 null */
+export function normalizeCategory(text) {
+  const value = text.trim();
+  const match = TERM_PREFIX.exec(value) ?? /^(\d{2,3})\s*-\s*([12])$/.exec(value);
+  if (match && match[0].length === value.length) return termCategory(match[1], match[2]);
+  return value || null;
 }
 
 /** 電話號碼的 tel: 連結，台灣的區碼 0 換成 +886 */

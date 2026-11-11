@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { rename, rm, writeFile } from 'node:fs/promises';
-import { extname, join, parse, win32 } from 'node:path';
+import { extname, join, parse, resolve, win32 } from 'node:path';
 import sharp from 'sharp';
 import { fail } from './errors.js';
 
@@ -32,11 +32,23 @@ function downloadName(name, ext) {
   return `${base || 'image'}${ext}`;
 }
 
+/** 啟動時確認資料夾可以建立、寫入與刪除檔案，不要等到第一次上傳才失敗 */
+function ensureWritableDir(dir) {
+  const probe = join(dir, `.write-test-${randomUUID()}`);
+  try {
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(probe, '');
+    rmSync(probe);
+  } catch (error) {
+    throw new Error(`無法寫入上傳資料夾 ${resolve(dir)}（${error.code ?? error.message}），請檢查 DATA_DIR 的路徑與執行帳號的權限`, { cause: error });
+  }
+}
+
 export function createStorage({ db, dataDir }) {
   const uploadsDir = join(dataDir, 'uploads');
   const displayDir = join(dataDir, 'display'); // 可由原始檔重新產生，不需要備份
-  mkdirSync(uploadsDir, { recursive: true });
-  mkdirSync(displayDir, { recursive: true });
+  ensureWritableDir(uploadsDir);
+  ensureWritableDir(displayDir);
 
   const pathOf = (storedName) => join(uploadsDir, storedName);
   const displayIdOf = (storedName) => parse(storedName).name;

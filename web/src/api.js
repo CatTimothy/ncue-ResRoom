@@ -238,8 +238,6 @@ const sendDocument = ({ file, title, category }) => sendFile(
   file,
 );
 
-export const uploadDocument = (document) => changed(sendDocument(document), '文件已上傳');
-
 /**
  * 依序上傳多份，一份失敗不影響其他份；回傳每份的結果（同 Promise.allSettled）。
  * 登入過期時後面的就不用試了。全部完成後只更新一次畫面。
@@ -265,6 +263,19 @@ export const updateDocument = ({ id, title, category }) => mutate(
 );
 
 export const deleteDocument = deleter('deleteDocument', '文件已刪除');
+
+/** 多選操作：回傳實際處理的份數 */
+export const setDocumentsCategory = (ids, category) => mutate(
+  'mutation ($ids: [ID!]!, $category: String) { setDocumentsCategory(ids: $ids, category: $category) }',
+  { ids, category },
+  `已變更 ${ids.length} 份文件的分類`,
+);
+
+export const deleteDocuments = (ids) => mutate(
+  'mutation ($ids: [ID!]!) { deleteDocuments(ids: $ids) }',
+  { ids },
+  `已刪除 ${ids.length} 份文件`,
+);
 
 // 登入
 const USER_FIELDS = 'username permissions';

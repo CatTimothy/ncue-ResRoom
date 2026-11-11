@@ -22,6 +22,10 @@ export const documentsTypeDefs = /* GraphQL */ `
     uploadDocument(file: File!, title: String!, category: String): Document!
     updateDocument(id: ID!, title: String!, category: String): Document!
     deleteDocument(id: ID!): Boolean!
+    "一次變更多份文件的分類；回傳實際變更的份數"
+    setDocumentsCategory(ids: [ID!]!, category: String): Int!
+    "一次刪除多份文件；回傳實際刪除的份數"
+    deleteDocuments(ids: [ID!]!): Int!
   }
 `;
 
@@ -49,6 +53,18 @@ export function createDocumentsResolvers({ db, storage }) {
       },
 
       deleteDocument: (_, { id }) => storage.deleteRow('documents', id),
+
+      async setDocumentsCategory(_, { ids, category }) {
+        const rows = await db.prepare('UPDATE documents SET category = $1 WHERE id = ANY($2::bigint[]) RETURNING id')
+          .all(category ?? null, ids);
+        return rows.length;
+      },
+
+      async deleteDocuments(_, { ids }) {
+        const rows = await db.prepare('DELETE FROM documents WHERE id = ANY($1::bigint[]) RETURNING stored_name').all(ids);
+        await storage.removeFiles(rows.map((row) => row.storedName));
+        return rows.length;
+      },
     }),
 
     Document: { url: storage.urlOf },

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { fileBaseName, fileSizeText, groupDocuments, markdownLink, fromLocalInput, fromRocInput, groupByYear, monthDayText, isScheduled, parseAlbum, rocDate, rocDateText, rocDateTimeText, rocShortDate, savedTimeText, taipeiDay, telHref, toLocalInput, toRocInput, wasEdited } from './format.js';
+import { fileBaseName, fileSizeText, groupDocuments, markdownLink, fromLocalInput, fromRocInput, groupByYear, monthDayText, isScheduled, normalizeCategory, parseAlbum, parseDocumentName, rocDate, rocDateText, rocDateTimeText, rocShortDate, savedTimeText, taipeiDay, telHref, toLocalInput, toRocInput, wasEdited } from './format.js';
 
 test('民國日期以台灣時區計算', () => {
   // UTC 11 月 3 日 16:30 在台灣已是 11 月 4 日
@@ -46,6 +46,25 @@ test('拆開相簿名稱中的學年與學期', () => {
   assert.deepEqual(parseAlbum('111(1) 職場攻略活動'), { term: '111 學年度第 1 學期', name: '職場攻略活動' });
   assert.deepEqual(parseAlbum('109（2）特教宣導週'), { term: '109 學年度第 2 學期', name: '特教宣導週' });
   assert.deepEqual(parseAlbum('校園風景'), { term: null, name: '校園風景' });
+});
+
+test('文件的標題與分類由檔名決定', () => {
+  assert.deepEqual(parseDocumentName('115(1)伴讀申請表.pdf'), { title: '伴讀申請表', category: '115學年度第一學期' });
+  assert.deepEqual(parseDocumentName('114（2） 課業輔導紀錄表.docx'), { title: '課業輔導紀錄表', category: '114學年度第二學期' });
+  assert.deepEqual(parseDocumentName('協助同學基本資料表.doc'), { title: '協助同學基本資料表', category: null });
+  // 只有學期、沒有其他文字時整個當作標題
+  assert.deepEqual(parseDocumentName('115(1).pdf'), { title: '115(1)', category: null });
+  assert.equal(parseDocumentName(`${'字'.repeat(250)}.pdf`).title.length, 200);
+});
+
+test('手動輸入的學期分類統一成「115學年度第一學期」', () => {
+  assert.equal(normalizeCategory(' 115(1) '), '115學年度第一學期');
+  assert.equal(normalizeCategory('115（2）'), '115學年度第二學期');
+  assert.equal(normalizeCategory('115-1'), '115學年度第一學期');
+  assert.equal(normalizeCategory('115學年度第一學期'), '115學年度第一學期');
+  assert.equal(normalizeCategory('115(1)申請表'), '115(1)申請表');
+  assert.equal(normalizeCategory('115學年度'), '115學年度');
+  assert.equal(normalizeCategory('  '), null);
 });
 
 test('判斷是否編輯過與是否未發布', () => {

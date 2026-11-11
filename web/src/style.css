@@ -250,6 +250,61 @@ h2 {
   font-size: 1.125rem;
 }
 
+.document-list__main {
+  flex: 1 1 14rem;
+  min-width: 0;
+}
+
+.document-list li.is-selected {
+  background: color-mix(in srgb, var(--primary) 8%, transparent);
+}
+
+.document-group__head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1rem;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+}
+
+.document-group__head h2 {
+  margin-bottom: 0;
+}
+
+.document-check {
+  display: inline-flex;
+  gap: 0.5rem;
+  align-items: center;
+  min-height: 2rem;
+  color: var(--text-soft);
+  cursor: pointer;
+}
+
+.document-check input {
+  width: 1.25rem;
+  height: 1.25rem;
+  margin: 0;
+  accent-color: var(--primary);
+}
+
+/* 多選時固定在畫面上方，捲到下面的分類也按得到 */
+.selection-bar {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  background: var(--surface);
+}
+
 /* 表單 */
 .form {
   display: grid;
