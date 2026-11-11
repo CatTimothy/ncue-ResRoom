@@ -1,12 +1,12 @@
 <script setup>
-import { reactive, useTemplateRef } from 'vue';
+import { reactive } from 'vue';
 import { login } from '../api.js';
 import { useEditor } from '../useEditor.js';
 import EditorDialog from './EditorDialog.vue';
 
-// 登入是浮在目前頁面上的視窗，登入後留在原本的頁面
-const dialog = useTemplateRef('dialog');
-const { busy, error, run } = useEditor({});
+// 登入是浮在目前頁面上的視窗，登入後留在原本的頁面。
+// 視窗的 ref 用 useEditor 回傳的 dialog：同一個元件不能再呼叫一次 useTemplateRef('dialog')
+const { dialog, busy, error, run } = useEditor({});
 const form = reactive({ username: '', password: '' });
 
 const submit = () => run(async () => {
