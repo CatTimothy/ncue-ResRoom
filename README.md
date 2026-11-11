@@ -28,7 +28,7 @@ npm run build                      # 輸出到根目錄的 public/，API 會直�
 
 API 不在 `http://localhost:4000` 時，啟動前請設定 `API_URL`。
 
-網站內建的網站設定與圖片（`web/public` 的標誌、網站圖示、主視覺）是通用的示範內容（DEMO SCHOOL）。第一次使用時，執行 `npm run seed-content` 匯入彰化師範大學資源教室的頁面內容、文件和網站設定（`seed/`，網站設定與圖片在 `seed/site-config.json` 和 `seed/branding/`），並把這些頁面排進頁首選單（選單裡還沒有任何頁面時才會）。網站設定只會寫入還是示範預設值的欄位、圖片只在還沒上傳時設定，已經修改過的不會被覆蓋。要給其他學校使用時，修改或移除 `seed/` 即可。可重複執行，不會覆蓋已存在的內容。沒有匯入時，頁首選單只有首頁、最新消息和活動剪影。
+網站內建的網站設定與圖片（`web/public` 的標誌、網站圖示、主視覺）是通用的示範內容（DEMO SCHOOL）。第一次使用時，執行 `npm run seed-content` 匯入彰化師範大學資源教室的頁面內容、文件和網站設定（`seed/`，網站設定與圖片在 `seed/site-config.json` 和 `seed/branding/`），並把這些頁面排進頁首選單（選單裡還沒有任何頁面時才會）。`seed/` 和「輸出網站資料」的 ZIP 是同一種格式（見「網站資料的輸出與匯入」）。網站設定只會寫入還是示範預設值的欄位、圖片只在還沒上傳時設定，已經修改過的不會被覆蓋。要給其他學校使用時，修改或移除 `seed/` 即可。可重複執行，不會覆蓋已存在的內容。沒有匯入時，頁首選單只有首頁、最新消息和活動剪影。
 
 上線時先在 `web/` 執行 `npm run build`，再於根目錄執行 `npm start`，網站和 API 都在同一個網址（`PORT`，預設 4000）。放在反向代理後方時，要保留原始 `Host` 標頭。`public/` 每次建置都會被清空重建，不要放自己的檔案。
 
@@ -53,19 +53,43 @@ API 不在 `http://localhost:4000` 時，啟動前請設定 `API_URL`。
 
 ### 管理內容
 
-按頁首右上角的「登入」後，公告、相簿、照片、文件和頁面都會出現新增、編輯、刪除按鈕。公告和頁面按編輯後，會在原頁面直接切換成編輯模式（網址加上 `?edit=1`，新增時是 `?new=1`）；相簿、照片和文件則用視窗編輯。上傳照片時每張都有自己的說明，預設為檔名；之後在燈箱點說明文字就能直接修改。公告和頁面內文的圖片也一樣（需要該內容的權限），修改時會改寫內文裡的圖片語法；用 HTML 寫的頁面要到編輯畫面改。日期一律以民國輸入，例如 `115/11/04 15:20`。頁面的總覽在「所有頁面」（`/pages`），最上方是頁首選單（需要 `MANAGE_SITE_CONFIG`），下方列出網站功能（首頁、最新消息、活動剪影、文件下載）與所有頁面。新增的頁面網址是 `/pages/<網址>`，要在頁首選單從「未加入」拖進選單才會出現在頁首。有 `MANAGE_SITE_CONFIG` 權限時，頁首會出現「網站設定」（`/settings`，頁尾的「編輯頁尾」也連到這裡），可以修改：網站標題（瀏覽器分頁的標題）、標誌、網站圖示（favicon）、標誌旁的名稱、首頁的標題與主視覺圖片、頁尾的聯絡資訊（標題、電話、分機、開放時間、聯絡老師），以及主題。頁首選單（連結可以是頁面或首頁、最新消息、活動剪影、文件下載，存在 `navigation_links` 資料表）在「所有頁面」編輯。圖片透過 `uploadContentImage` 上傳，按「使用內建圖片」會改回 `web/public` 裡的圖片。Copyright 固定為 CatTimothy（寫在 `web/src/components/SiteFooter.vue`），年份和今日訪問人數由系統產生。帳號用 `npm run create-user -- <username>` 建立。
+按頁首右上角的「登入」會在目前的頁面上開啟登入視窗（舊的 `/login` 網址會回到首頁並開啟視窗），登入後留在原本的頁面。登入後，公告、相簿、照片、文件和頁面都會出現新增、編輯、刪除按鈕。公告和頁面按編輯後，會在原頁面直接切換成編輯模式（網址加上 `?edit=1`，新增時是 `?new=1`）；相簿、照片和文件則用視窗編輯。上傳照片時每張都有自己的說明，預設為檔名；之後在燈箱點說明文字就能直接修改。公告和頁面內文的圖片也一樣（需要該內容的權限），修改時會改寫內文裡的圖片語法；用 HTML 寫的頁面要到編輯畫面改。日期一律以民國輸入，例如 `115/11/04 15:20`。頁面的總覽在「所有頁面」（`/pages`），最上方是頁首選單（需要 `MANAGE_SITE_CONFIG`），下方列出網站功能（首頁、最新消息、活動剪影、文件下載）與所有頁面。有 `MANAGE_PAGES` 權限時，頁首會出現「新增頁面」按鈕。頁面的網址直接在第一層，例如 `/about`、`/test`（舊的 `/pages/<網址>` 會轉過去）；`announcements`、`photos`、`documents`、`pages`、`settings` 等網站已經用掉的網址不能當作頁面網址（`web/src/navigation.js` 的 `RESERVED_SLUGS`）。新增的頁面要在頁首選單從「未加入」拖進選單才會出現在頁首。有 `MANAGE_SITE_CONFIG` 權限時，頁首會出現「網站設定」（`/settings`，頁尾的「編輯頁尾」也連到這裡），可以修改：網站標題（瀏覽器分頁的標題）、標誌、網站圖示（favicon）、標誌旁的名稱、首頁的標題與主視覺圖片、頁尾的聯絡資訊（標題、電話、分機、開放時間、聯絡老師），以及主題。頁首選單（連結可以是頁面或首頁、最新消息、活動剪影、文件下載，存在 `navigation_links` 資料表）在「所有頁面」編輯。圖片透過 `uploadContentImage` 上傳，按「使用內建圖片」會改回 `web/public` 裡的圖片。Copyright 固定為 CatTimothy（寫在 `web/src/components/SiteFooter.vue`），年份和今日訪問人數由系統產生。帳號用 `npm run create-user -- <username>` 建立。
 
 公告和頁面使用 Markdown 編輯器（md-editor-v3，只在管理員開啟時下載）；頁面也可以在編輯畫面改選 HTML，改用純文字的輸入框（切換格式不會轉換已輸入的內容）。工具列的「新增圖片」、把圖片拖進內容區或貼上，都會自動上傳並插入圖片語法。有 `MANAGE_DOCUMENTS` 權限時，工具列還有「新增文件」，也可以把文件拖進內容區（拖曳時游標會標示插入的位置）：文件會透過 `uploadDocument` 上傳並插入下載連結，同時列在「文件下載」頁；在該頁刪除文件後，內容裡的連結會失效。沒有任何公告、頁面或網站設定引用（`schema.sql` 的 `image_references`）、且超過 1 天的圖片，會在下次上傳內文圖片時清除。
 
 ### 網站資料的輸出與匯入
 
-網站設定頁最下方的「網站資料」可以把整個網站輸出成一個 `.tar` 檔，或匯入這樣的檔案，用來備份或搬到另一個網站。需要帳號管理以外的所有權限（`src/lib/permissions.js` 的 `SITE_DATA_PERMISSIONS`），因為輸出包含未發布的內容，匯入會取代所有內容。
+網站設定頁最下方的「網站資料」可以把整個網站輸出成一個 ZIP 檔，或匯入這樣的檔案，用來備份、直接修改後再匯入，或搬到另一個網站。需要帳號管理以外的所有權限（`src/lib/permissions.js` 的 `SITE_DATA_PERMISSIONS`），因為輸出包含未發布的內容，匯入會取代所有內容。也可以直接呼叫：`GET /site-data` 下載，`POST /site-data`（請求內容就是 ZIP 檔本身）匯入，都要帶登入的 cookie。
 
-- 檔案裡是 `data.json`（`schema.sql` 的 `export_site()` 輸出的資料表：頁面、公告、相簿、照片與內文圖片、文件、網站設定、頁首選單、每日訪問人數）和 `files/` 底下的照片與文件原始檔。帳號、密碼與登入狀態不包含在內；照片的壓縮版匯入後會在背景重新產生。
-- 匯入時先把上傳的內容寫到暫存檔，全部讀完並檢查過才用 `import_site()` 一次取代資料庫裡的資料；任何一步失敗，網站都維持原狀。成功後，原本的照片與文件檔案中不再使用的會被刪除。資料保留原本的 id，網址不會改變。
-- 瀏覽器會先讀出檔案裡的資料摘要（`web/src/siteData.js`），請管理員確認後才上傳。
-- 也可以直接呼叫：`GET /site-data` 下載，`POST /site-data`（請求內容就是檔案本身）匯入，都要帶登入的 cookie。上傳是邊收邊寫入磁碟，不會整個讀進記憶體，但反向代理要放寬請求大小與逾時限制。
-- 新增資料表時，加在 `schema.sql` 的 `site_data_tables()`；修改 `data.json` 的格式時，遞增 `src/http/site-data.js` 的 `VERSION`，並讓匯入能讀舊版。舊版輸出的資料缺少新欄位時，匯入會使用欄位的預設值。
+ZIP 裡的資料夾結構和專案的 `seed/` 一樣（程式在 `src/site-files/`），所以把 `seed/` 壓縮成 ZIP 也能直接匯入；整包放在一個資料夾裡壓縮也可以，匯入時會去掉最外層：
+
+```text
+site-config.json            網站設定，欄位名稱同 GraphQL；"images": { "logoUrl": "logo.webp" } 指向 branding/ 裡的圖片
+navigation.json             頁首選單 { "utility": [{ "service": "HOME" }, { "page": "map" }], "main": [...] }
+visits.json                 每日訪問人數
+pages/<slug>.md 或 .html     頁面；開頭的 front matter 寫 title
+announcements/<名稱>.md      公告；front matter 寫 title、publishedAt、unit、deadline、contactPerson、extension 等
+albums/<資料夾>/             一本相簿；album.json 寫 name、eventDate 和每張照片的說明（沒寫的用檔名）
+documents/<分類>/<檔名>      文件；資料夾就是分類，標題預設是檔名。documents.json 可以另外寫標題與分類
+images/                     內文圖片，內文寫成 {{image:map.png}}；連到文件寫成 {{document:分類/檔名.pdf}}
+branding/                   標誌、網站圖示、主視覺
+```
+
+front matter 的寫法如下，值可以是 JSON 或直接寫文字：
+
+```markdown
+---
+title: 資源教室簡介
+---
+
+內文……
+```
+
+- 帳號、密碼與登入狀態不包含在內。
+- 匯入時先把圖片與文件寫進上傳資料夾，再用 `schema.sql` 的 `import_site()` 一次取代資料庫裡的資料；任何一步失敗，網站都維持原狀。成功後，原本的照片與文件檔案會被刪除。公告與相簿寫了 `id` 時沿用，網址不會改變。
+- 瀏覽器會先讀出 ZIP 的檔案清單，顯示各類內容的數量，請管理員確認後才上傳（`web/src/siteData.js`、`web/src/zipIndex.js`）。上傳的 ZIP 會先存成暫存檔，所以要有足夠的磁碟空間；反向代理也要放寬請求大小與逾時限制。
+- `npm run seed-content` 讀的也是這個格式，但只會補上沒有的內容，不會取代。
+- 新增資料表或欄位時，輸出在 `src/site-files/export.js`、匯入在 `src/site-files/import.js`、讀取在 `src/site-files/read.js`；資料表也要加在 `schema.sql` 的 `site_data_tables()`。
 
 ### 靜態網站
 
@@ -205,6 +229,7 @@ src/
 │  ├─ photos.js
 │  └─ documents.js
 ├─ http/              # 檔案下載、網站資料的輸出與匯入、靜態網站下載、請求前置檢查
+├─ site-files/        # 網站資料的資料夾格式（和 seed/ 相同）：讀取、輸出、匯入
 ├─ static-site/       # 靜態網站的樣板與前端程式
 ├─ lib/               # 登入狀態、密碼、權限檢查、錯誤、內容消毒、檔案儲存
 └─ scripts/           # create-user

@@ -62,7 +62,7 @@ const submit = () => run(async () => {
     <label v-if="creating" class="field">
       <span>頁面網址</span>
       <input v-model="form.slug" required maxlength="100" pattern="[a-z0-9]+(-[a-z0-9]+)*" />
-      <small>小寫英文、數字和連字號，例如 guide-2026。頁面會出現在 /pages/guide-2026。</small>
+      <small>小寫英文、數字和連字號，例如 guide-2026。頁面會出現在 /guide-2026。</small>
     </label>
     <fieldset class="format-choice">
       <legend>內容格式</legend>

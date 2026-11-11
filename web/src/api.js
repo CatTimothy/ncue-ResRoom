@@ -297,7 +297,7 @@ export const deleteDocuments = (ids) => mutate(
 // 網站資料
 /**
  * 上傳網站資料檔案，取代所有內容。用 XMLHttpRequest 才能回報上傳進度（onProgress 收到 0～1）；
- * 回傳 { counts, missingFiles }
+ * 回傳各類內容匯入的數量 { pages, announcements, albums, photos, documents }
  */
 export async function importSiteData(file, onProgress = () => {}) {
   const request = new XMLHttpRequest();

@@ -3,7 +3,7 @@ import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { crc32, inflateRawSync } from 'node:zlib';
 import { after, before, test } from 'node:test';
@@ -1528,7 +1528,7 @@ function siteClient(site, headers) {
   };
 }
 
-test('site data exports to a file that replaces another site\'s content', async () => {
+test('site data exports the seed folder format and replaces another site\'s content', async () => {
   const source = await start();
   const target = await start();
   try {
@@ -1536,14 +1536,16 @@ test('site data exports to a file that replaces another site\'s content', async 
     const targetAuth = (await login(USER.username, USER.password, target.base)).headers;
     const from = siteClient(source, sourceAuth);
     const to = siteClient(target, targetAuth);
+    const UPLOAD_IMAGE = 'mutation ($file: File!) { uploadContentImage(file: $file) { url } }';
 
-    await from.gql(SAVE_PAGE, { slug: 'about', title: '簡介', content: '# 你好', format: 'MARKDOWN' });
+    const document = (await from.upload(UPLOAD_DOCUMENT, { title: '申請表', category: '115學年度第一學期' }, 'document body', 'a.pdf')).data.uploadDocument;
+    const { url: imageUrl } = (await from.upload(UPLOAD_IMAGE, {}, PNG, 'map.png')).data.uploadContentImage;
+    await from.gql(SAVE_PAGE, { slug: 'about', title: '簡介', content: `# 你好\n\n![地圖](${imageUrl})\n\n[表單](${document.url})`, format: 'MARKDOWN' });
     await from.gql('mutation { saveNavigation(input: { utility: [{ service: HOME }], main: [{ page: "about" }] }) { main { page { slug } } } }');
     const announcement = (await from.gql(SAVE_ANNOUNCEMENT, { title: '公告', content: '內容' })).data.saveAnnouncement;
     const album = (await from.gql(SAVE_ALBUM, { name: '110(1)參訪', eventDate: '2021-10-01' })).data.saveAlbum;
-    const photo = (await from.upload(UPLOAD_PHOTO, { alt: '合照', albumId: album.id }, PNG, 'a.png')).data.uploadPhoto;
-    const document = (await from.upload(UPLOAD_DOCUMENT, { title: '申請表', category: '其他' }, 'document body', 'a.pdf')).data.uploadDocument;
-    const { url: logoUrl } = (await from.upload('mutation ($file: File!) { uploadContentImage(file: $file) { url } }', {}, PNG, 'logo.png')).data.uploadContentImage;
+    await from.upload(UPLOAD_PHOTO, { alt: '合照', albumId: album.id }, PNG, 'a.png');
+    const { url: logoUrl } = (await from.upload(UPLOAD_IMAGE, {}, PNG, 'logo.png')).data.uploadContentImage;
     const config = (await from.gql(`{ siteConfig { ${CONFIG_FIELDS} } }`)).data.siteConfig;
     await from.gql(SAVE_CONFIG, { input: { ...config, siteTitle: '匯出的網站', logoUrl } });
 
@@ -1553,43 +1555,91 @@ test('site data exports to a file that replaces another site\'s content', async 
 
     const exported = await fetch(`${source.base}/site-data`, { headers: sourceAuth });
     assert.equal(exported.status, 200);
-    assert.match(exported.headers.get('content-disposition'), /^attachment; filename="resroom-\d{4}-\d{2}-\d{2}\.tar"$/);
+    assert.match(exported.headers.get('content-disposition'), /^attachment; filename="site-data-\d{4}-\d{2}-\d{2}\.zip"$/);
     const archive = Buffer.from(await exported.arrayBuffer());
     assert.equal(archive.length, Number(exported.headers.get('content-length')));
-    assert.equal(archive.length % 512, 0);
+
+    // 和 seed/ 一樣的資料夾結構
+    const files = unzip(archive);
+    const text = (name) => files.get(name)?.toString('utf8');
+    assert.match(text('pages/about.md'), /^---\ntitle: "簡介"\nupdatedAt: "[^"]+"\n---\n\n# 你好\n\n!\[地圖\]\(\{\{image:map\.png\}\}\)\n\n\[表單\]\(\{\{document:115學年度第一學期\/a\.pdf\}\}\)$/);
+    assert.deepEqual(files.get('images/map.png'), PNG);
+    assert.equal(text('documents/115學年度第一學期/a.pdf'), 'document body');
+    assert.deepEqual(JSON.parse(text('documents/documents.json')).map(({ file, title, category }) => ({ file, title, category })),
+      [{ file: '115學年度第一學期/a.pdf', title: '申請表', category: '115學年度第一學期' }]);
+    const albumJson = JSON.parse(text('albums/2021-10-01 110(1)參訪/album.json'));
+    assert.deepEqual([albumJson.id, albumJson.name, albumJson.photos], [Number(album.id), '110(1)參訪', [{ file: 'a.png', alt: '合照' }]]);
+    assert.deepEqual(files.get('albums/2021-10-01 110(1)參訪/a.png'), PNG);
+    const siteConfig = JSON.parse(text('site-config.json'));
+    assert.equal(siteConfig.siteTitle, '匯出的網站');
+    assert.deepEqual(siteConfig.images, { logoUrl: 'logo.png' });
+    assert.deepEqual(files.get('branding/logo.png'), PNG);
+    assert.deepEqual(JSON.parse(text('navigation.json')), { utility: [{ service: 'HOME' }], main: [{ page: 'about' }] });
+    assert.ok([...files.keys()].some((name) => /^announcements\/\d{4}-\d{2}-\d{2}-\d+\.md$/.test(name)));
 
     const imported = await fetch(`${target.base}/site-data`, { method: 'POST', headers: targetAuth, body: archive });
     assert.equal(imported.status, 200);
-    assert.deepEqual(await imported.json(), {
-      counts: { pages: 1, announcements: 1, albums: 1, photos: 2, documents: 1 },
-      missingFiles: 0,
-    });
+    assert.deepEqual(await imported.json(), { pages: 1, announcements: 1, albums: 1, photos: 1, documents: 1 });
 
     assert.deepEqual((await to.gql('{ pages { slug title } }')).data.pages, [{ slug: 'about', title: '簡介' }]);
     assert.deepEqual((await to.gql('{ navigation { main { page { slug } } } }')).data.navigation.main, [{ page: { slug: 'about' } }]);
-    assert.equal((await to.gql(`{ siteConfig { siteTitle logoUrl } }`)).data.siteConfig.siteTitle, '匯出的網站');
-    assert.equal((await to.gql(`query ($id: ID!) { announcement(id: $id) { title } }`, { id: announcement.id })).data.announcement.title, '公告');
-    const documents = (await to.gql('{ documents { id title url } }')).data.documents;
-    assert.deepEqual(documents, [{ id: document.id, title: '申請表', url: document.url }]);
-    assert.equal((await to.download(document.url)).toString(), 'document body');
-    assert.deepEqual(await to.download(photo.originalUrl), PNG);
-    assert.equal((await fetch(`${target.base}${logoUrl}`)).status, 200); // 壓縮版重新產生
-    // 只剩匯入的照片與文件（另有 2 張照片的壓縮版在 display）
-    assert.equal(readdirSync(join(target.dataDir, 'uploads')).length, 3);
+    const targetConfig = (await to.gql('{ siteConfig { siteTitle logoUrl } }')).data.siteConfig;
+    assert.equal(targetConfig.siteTitle, '匯出的網站');
+    assert.equal((await fetch(target.base + targetConfig.logoUrl)).status, 200);
+    // 公告與相簿的 id 不變，網址照樣能用
+    assert.equal((await to.gql('query ($id: ID!) { announcement(id: $id) { title } }', { id: announcement.id })).data.announcement.title, '公告');
+    const targetPhotos = (await to.gql('query ($id: ID!) { photos(albumId: $id) { alt originalUrl } }', { id: album.id })).data.photos;
+    assert.equal(targetPhotos[0].alt, '合照');
+    assert.deepEqual(await to.download(targetPhotos[0].originalUrl), PNG);
+    const [targetDocument] = (await to.gql('{ documents { title category url } }')).data.documents;
+    assert.deepEqual([targetDocument.title, targetDocument.category], ['申請表', '115學年度第一學期']);
+    assert.equal((await to.download(targetDocument.url)).toString(), 'document body');
+    // 內文的圖片與文件連結換成新的網址
+    const { html } = (await to.gql('{ page(slug: "about") { html } }')).data.page;
+    assert.ok(html.includes(targetDocument.url));
+    assert.equal((await fetch(target.base + /src="([^"]+)"/.exec(html)[1])).status, 200);
+    // 舊的檔案已刪除：只剩文件、相簿照片、內文圖片和標誌
+    assert.equal(readdirSync(join(target.dataDir, 'uploads')).length, 4);
 
-    // 帳號不受影響；之後新增的資料接著原本的 id 編號
     assert.equal((await to.gql('{ me { username } }')).data.me.username, USER.username);
     const next = (await to.gql(SAVE_ANNOUNCEMENT, { title: '新公告', content: 'x' })).data.saveAnnouncement;
     assert.ok(Number(next.id) > Number(announcement.id));
-
-    // 再匯入同一份資料，結果不變
-    const again = await fetch(`${target.base}/site-data`, { method: 'POST', headers: targetAuth, body: archive });
-    assert.equal(again.status, 200);
-    assert.equal((await to.gql('{ announcements { title } }')).data.announcements.length, 1);
-    assert.deepEqual(await to.download(photo.originalUrl), PNG);
   } finally {
     await source.stop();
     await target.stop();
+  }
+});
+
+async function zipBuffer(entries) {
+  const { createZip } = await import('../src/lib/zip.js');
+  const chunks = [];
+  for await (const chunk of (await createZip(entries)).stream()) chunks.push(chunk);
+  return Buffer.concat(chunks);
+}
+
+test('the seed folder can be zipped and imported as site data', async () => {
+  const site = await start();
+  try {
+    const headers = (await login(USER.username, USER.password, site.base)).headers;
+    const client = siteClient(site, headers);
+    // 用資料夾壓縮時，檔案都在 seed/ 底下，匯入時去掉這一層
+    const seedDir = fileURLToPath(new URL('../seed', import.meta.url));
+    const paths = readdirSync(seedDir, { recursive: true, withFileTypes: true }).filter((entry) => entry.isFile())
+      .map((entry) => join(entry.parentPath, entry.name));
+    const zip = await zipBuffer(paths.map((path) => ({ name: `seed/${relative(seedDir, path).split(sep).join('/')}`, path })));
+
+    const res = await fetch(`${site.base}/site-data`, { method: 'POST', headers, body: zip });
+    assert.equal(res.status, 200);
+    assert.deepEqual(await res.json(), { pages: 5, announcements: 0, albums: 0, photos: 0, documents: 7 });
+    const pages = (await client.gql('{ pages { slug title html } }')).data.pages;
+    assert.equal(pages.find((page) => page.slug === 'about').title, '資源教室簡介');
+    assert.match(pages.find((page) => page.slug === 'map').html, /<img src="\/files\/display\/[0-9a-f-]{36}\.webp"/);
+    const documents = (await client.gql('{ documents(limit: 100) { category } }')).data.documents;
+    assert.ok(documents.every((doc) => doc.category === '111學年度第一學期'));
+    assert.equal((await client.gql('{ siteConfig { siteTitle } }')).data.siteConfig.siteTitle, '國立彰化師範大學資源教室');
+    assert.deepEqual(slugsOf((await client.gql(NAVIGATION)).data.navigation.main), ['about', 'services', 'ANNOUNCEMENTS', 'members', 'regulations', 'PHOTOS']);
+  } finally {
+    await site.stop();
   }
 });
 
@@ -1605,19 +1655,12 @@ test('site data needs every content permission and rejects other files', async (
   const pagesBefore = (await gql('{ pages { slug } }')).data.pages;
   const garbage = await fetch(`${app.base}/site-data`, { method: 'POST', headers: auth, body: Buffer.alloc(2048, 1) });
   assert.equal(garbage.status, 400);
-  assert.match(await garbage.text(), /損毀|網站資料/);
+  assert.match(await garbage.text(), /ZIP/);
 
-  // 格式正確但檔名想跳出上傳資料夾
-  const { tarHeader, tarPadding, TAR_END } = await import('../src/lib/tar.js');
-  const json = Buffer.from(JSON.stringify({
-    format: 'ncue-resroom-site-data',
-    version: 1,
-    tables: { photos: [{ id: 1, stored_name: '../../evil.png', alt: 'x' }] },
-  }));
-  const evil = Buffer.concat([tarHeader('data.json', json.length), json, tarPadding(json.length), TAR_END]);
-  const rejected = await fetch(`${app.base}/site-data`, { method: 'POST', headers: auth, body: evil });
+  const other = await zipBuffer([{ name: 'notes/readme.txt', data: Buffer.from('hello') }]);
+  const rejected = await fetch(`${app.base}/site-data`, { method: 'POST', headers: auth, body: other });
   assert.equal(rejected.status, 400);
-  assert.equal(await rejected.text(), '網站資料裡有不正確的檔名');
+  assert.match(await rejected.text(), /不是網站資料/);
 
   assert.deepEqual((await gql('{ pages { slug } }')).data.pages, pagesBefore);
   assert.ok(!readdirSync(join(app.dataDir, 'uploads')).some((name) => name.startsWith('.import-')));
@@ -1698,7 +1741,7 @@ test('the static site download contains public content as linked HTML files', as
     assert.match(about, /href="..\/assets\/index-abc.css"/);
     assert.match(about, /src="..\/logo.webp"/);
     assert.match(about, /src="..\/site.js"/);
-    assert.ok(text('pages/extra/index.html').includes('<title>其他 &#38; 更多｜'));
+    assert.ok(text('extra/index.html').includes('<title>其他 &#38; 更多｜'));
     assert.match(text('index.html'), /href="announcements\/index.html"/);
     assert.equal(text('assets/index-abc.css'), 'body{font-family:x;src:url(./font-1.woff2)}');
     assert.equal(text('assets/font-1.woff2'), 'font');
@@ -1708,4 +1751,10 @@ test('the static site download contains public content as linked HTML files', as
     await site.stop();
     rmSync(publicDir, { recursive: true, force: true });
   }
+});
+
+test('pages live at the top level, so slugs used by the site are refused', async () => {
+  const { errors } = await gql(SAVE_PAGE, { slug: 'photos', title: '照片', content: 'x', format: 'MARKDOWN' });
+  assert.match(errors[0].message, /網址「\/photos」已經用於網站功能/);
+  assert.equal((await gql('{ page(slug: "photos") { slug } }')).data.page, null);
 });

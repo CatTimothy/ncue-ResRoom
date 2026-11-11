@@ -1,36 +1,32 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { tarHeader, tarPadding, TAR_END } from '../../src/lib/tar.js';
+import { createZip } from '../../src/lib/zip.js';
 import { SITE_DATA_PERMISSIONS as SERVER_PERMISSIONS } from '../../src/lib/permissions.js';
 import { countsText, importQuestion, readSiteData, SITE_DATA_PERMISSIONS } from './siteData.js';
 
-const archive = (name, data) => {
-  const json = Buffer.from(JSON.stringify(data));
-  return new Blob([tarHeader(name, json.length), json, tarPadding(json.length), TAR_END]);
-};
+async function zipFile(names) {
+  const chunks = [];
+  for await (const chunk of (await createZip(names.map((name) => ({ name, data: Buffer.from('x') })))).stream()) chunks.push(chunk);
+  return new Blob(chunks);
+}
 
 test('site data permissions match the server', () => {
   assert.deepEqual(SITE_DATA_PERMISSIONS, SERVER_PERMISSIONS);
 });
 
-test('readSiteData summarizes an exported file', async () => {
-  const file = archive('data.json', {
-    format: 'ncue-resroom-site-data',
-    version: 1,
-    exportedAt: '2026-11-11T02:00:00.000Z',
-    tables: { pages: [{}, {}], announcements: [{}], photos: [], documents: [{}] },
-  });
-  const summary = await readSiteData(file);
-  assert.deepEqual(summary, {
-    exportedAt: '2026-11-11T02:00:00.000Z',
-    counts: { pages: 2, announcements: 1, albums: 0, photos: 0, documents: 1 },
-  });
-  assert.equal(countsText(summary.counts), '2 個頁面、1 則公告、沒有相簿、沒有照片與內文圖片、1 份文件');
-  assert.match(importQuestion(summary), /輸出於 .+，包含2 個頁面/);
+test('readSiteData counts the content of a site data zip, also inside one folder', async () => {
+  const counts = await readSiteData(await zipFile([
+    'seed/site-config.json', 'seed/pages/about.md', 'seed/pages/map.html', 'seed/announcements/2026-11-04-1.md',
+    'seed/albums/2021-10-01 參訪/album.json', 'seed/albums/2021-10-01 參訪/a.jpg', 'seed/albums/2021-10-01 參訪/b.png',
+    'seed/documents/documents.json', 'seed/documents/111學年度第一學期/申請表.doc', 'seed/images/map.png',
+    '__MACOSX/seed/._about.md',
+  ]));
+  assert.deepEqual(counts, { pages: 2, announcements: 1, albums: 1, photos: 2, documents: 1 });
+  assert.equal(countsText(counts), '2 個頁面、1 則公告、1 本相簿、2 張相簿照片、1 份文件');
+  assert.match(importQuestion(counts), /^這份網站資料包含2 個頁面/);
 });
 
 test('readSiteData rejects other files', async () => {
-  await assert.rejects(readSiteData(new Blob(['hello'])), /不是本網站/);
-  await assert.rejects(readSiteData(archive('other.json', { format: 'ncue-resroom-site-data', tables: {} })), /不是本網站/);
-  await assert.rejects(readSiteData(archive('data.json', { format: 'other', tables: {} })), /不是本網站/);
+  await assert.rejects(readSiteData(new Blob(['hello'])), /不是 ZIP/);
+  await assert.rejects(readSiteData(await zipFile(['notes/readme.txt'])), /不是網站資料/);
 });

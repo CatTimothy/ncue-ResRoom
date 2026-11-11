@@ -1,7 +1,7 @@
 import { nextTick } from 'vue';
 import { createRouter, createWebHistory } from 'vue-router';
 import { canAnimate } from './motion.js';
-import { BUILT_IN_PAGES, SERVICES } from './navigation.js';
+import { BUILT_IN_PAGES, pagePath, SERVICES } from './navigation.js';
 import { focusMain, setTitle } from './page.js';
 import Album from './views/Album.vue';
 import Albums from './views/Albums.vue';
@@ -9,31 +9,35 @@ import Announcement from './views/Announcement.vue';
 import Announcements from './views/Announcements.vue';
 import Documents from './views/Documents.vue';
 import Home from './views/Home.vue';
-import Login from './views/Login.vue';
 import NotFound from './views/NotFound.vue';
 import Pages from './views/Pages.vue';
 import PageView from './views/PageView.vue';
 import SiteSettings from './views/SiteSettings.vue';
 
+/** 只回到本站的路徑，避免被導向外部網站 */
+const safeRedirect = (target) => (typeof target === 'string' && /^\/(?![/\\])/.test(target) ? target : '/');
+
 export const router = createRouter({
   history: createWebHistory(),
   routes: [
     { path: '/', component: Home },
-    ...Object.entries(BUILT_IN_PAGES).map(([slug, title]) => ({
-      path: `/${slug}`,
-      component: PageView,
-      props: { slug, fallbackTitle: title },
-      meta: { title },
-    })),
     { path: SERVICES.ANNOUNCEMENTS.to, component: Announcements, meta: { title: SERVICES.ANNOUNCEMENTS.label } },
     { path: `${SERVICES.ANNOUNCEMENTS.to}/:id`, component: Announcement, props: true, meta: { title: SERVICES.ANNOUNCEMENTS.label } },
     { path: SERVICES.PHOTOS.to, component: Albums, meta: { title: SERVICES.PHOTOS.label } },
     { path: `${SERVICES.PHOTOS.to}/:id`, component: Album, props: true, meta: { title: SERVICES.PHOTOS.label } },
     { path: SERVICES.DOCUMENTS.to, component: Documents, meta: { title: SERVICES.DOCUMENTS.label } },
     { path: '/pages', component: Pages, meta: { title: '所有頁面' } },
-    { path: '/pages/:slug', component: PageView, props: true },
+    { path: '/pages/:slug', redirect: (to) => ({ path: pagePath(to.params.slug), query: to.query, hash: to.hash }) },
     { path: '/settings', component: SiteSettings, meta: { title: '網站設定' } },
-    { path: '/login', component: Login, meta: { title: '管理員登入' } },
+    // 登入是頁首開啟的視窗；舊的 /login 連結回到原本的頁面並開啟視窗
+    { path: '/login', redirect: (to) => ({ path: safeRedirect(to.query.redirect), query: { login: '1' } }) },
+    // 頁面直接在第一層，例如 /about、/test；上面的網站功能優先
+    {
+      path: '/:slug([a-z0-9]+(?:-[a-z0-9]+)*)',
+      component: PageView,
+      props: (to) => ({ slug: to.params.slug, fallbackTitle: BUILT_IN_PAGES[to.params.slug] ?? '' }),
+      meta: { title: '' },
+    },
     { path: '/:rest(.*)*', component: NotFound, meta: { title: '找不到頁面' } },
   ],
   scrollBehavior: (to, from, saved) => {

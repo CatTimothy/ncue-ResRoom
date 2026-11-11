@@ -1,7 +1,8 @@
 <script setup>
-import { computed, useTemplateRef } from 'vue';
-import { useRoute } from 'vue-router';
+import { computed, useTemplateRef, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { can, currentUser, logout, notice } from './api.js';
+import LoginDialog from './components/LoginDialog.vue';
 import SiteFooter from './components/SiteFooter.vue';
 import UserSettings from './components/UserSettings.vue';
 import { DEFAULT_NAVIGATION, mapMenus, menuLink } from './navigation.js';
@@ -10,7 +11,17 @@ import { themeMode, toggleTheme } from './theme.js';
 import { useDropdown } from './useDropdown.js';
 
 const route = useRoute();
+const router = useRouter();
 const settings = useTemplateRef('settings');
+const loginDialog = useTemplateRef('loginDialog');
+
+// 舊的 /login 連結會轉到 ?login=1（見 router.js）：開啟登入視窗，並把網址還原
+watch(() => route.query.login, async (value) => {
+  if (value === undefined) return;
+  const { login: _, ...query } = route.query;
+  await router.replace({ query });
+  if (!currentUser.value) loginDialog.value?.open();
+});
 const logo = siteImage('logoUrl');
 
 // 選單的內容在網站設定排列；載入前先顯示預設的網站功能
@@ -56,6 +67,7 @@ async function signOut() {
     </RouterLink>
 
     <div class="site-header__tools">
+      <RouterLink v-if="can('MANAGE_PAGES')" class="login-link" to="/pages?new=1">新增頁面</RouterLink>
       <div v-if="currentUser" ref="account" class="dropdown" @click="closeOnLink($event, closeAccount)">
         <button
           type="button"
@@ -79,11 +91,7 @@ async function signOut() {
           <li><button type="button" @click="signOut">登出</button></li>
         </ul>
       </div>
-      <RouterLink
-        v-else
-        class="login-link"
-        :to="{ path: '/login', query: route.path === '/login' ? {} : { redirect: route.fullPath } }"
-      >登入</RouterLink>
+      <button v-else type="button" class="login-link" @click="loginDialog.open()">登入</button>
 
       <!-- 名稱固定，按下狀態表示是否為深色；圖示顯示按下後會切換成的主題 -->
       <button
@@ -141,6 +149,7 @@ async function signOut() {
 
   <SiteFooter />
   <UserSettings v-if="currentUser" ref="settings" />
+  <LoginDialog v-else ref="loginDialog" />
 
   <p class="toast" :class="{ 'is-visible': notice }" role="status">{{ notice }}</p>
 </template>

@@ -36,7 +36,7 @@ const saveMenus = () => run(async () => {
 
 <template>
   <div class="page">
-    <PageEditor v-if="creating" @done="(slug) => router.replace(`/pages/${slug}`)" @cancel="close" />
+    <PageEditor v-if="creating" @done="(slug) => router.replace(pagePath(slug))" @cancel="close" />
 
     <template v-else>
       <h1 class="stop">所有頁面</h1>

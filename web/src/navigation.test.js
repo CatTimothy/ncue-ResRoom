@@ -5,7 +5,7 @@ import { allLinks, editorRows, linkInput, menuLink, moveLink, navigationKeys } f
 test('連結換成網址與名稱：內建頁面用固定網址，其他頁面在 /pages 底下', () => {
   assert.deepEqual(menuLink({ service: 'HOME', page: null }), { key: 'HOME', to: '/', label: '首頁' });
   assert.deepEqual(menuLink({ service: null, page: { slug: 'about', title: '簡介' } }), { key: 'page:about', to: '/about', label: '簡介' });
-  assert.equal(menuLink({ service: null, page: { slug: 'photos', title: '照片' } }).to, '/pages/photos');
+  assert.equal(menuLink({ service: null, page: { slug: 'photo-wall', title: '照片' } }).to, '/photo-wall');
 });
 
 test('key 與 API 的輸入互換', () => {

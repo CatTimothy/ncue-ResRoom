@@ -1,3 +1,7 @@
+---
+title: 法令規章
+---
+
 請點下列連結查看全國法規資料庫的條文。
 
 - [身心障礙及資賦優異學生鑑定辦法](https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=H0080065)

@@ -1,4 +1,4 @@
-/** 有固定網址 /<slug> 的頁面（見 router.js）；頁面還沒建立時用這裡的標題 */
+/** 常用頁面的預設標題：頁面還沒建立時顯示 */
 export const BUILT_IN_PAGES = {
   about: '資源教室簡介',
   services: '服務項目',
@@ -21,8 +21,14 @@ export const DEFAULT_NAVIGATION = {
   main: [{ service: 'ANNOUNCEMENTS', page: null }, { service: 'PHOTOS', page: null }],
 };
 
-/** 頁面的網址：內建頁面是 /<slug>，其他頁面在 /pages 底下 */
-export const pagePath = (slug) => (slug in BUILT_IN_PAGES ? `/${slug}` : `/pages/${slug}`);
+/** 網站已經用掉的第一層網址，頁面不能用這些 slug（伺服器的 savePage 也會檢查） */
+export const RESERVED_SLUGS = [
+  'announcements', 'photos', 'documents', 'pages', 'settings', 'login',
+  'files', 'assets', 'graphql', 'site-data', 'static-site',
+];
+
+/** 頁面的網址：/<slug>；舊的 /pages/<slug> 會轉過來 */
+export const pagePath = (slug) => `/${slug}`;
 
 /** 對選單的兩列各自套用 fn */
 export const mapMenus = (navigation, fn) => ({ utility: navigation.utility.map(fn), main: navigation.main.map(fn) });

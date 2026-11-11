@@ -1,3 +1,4 @@
+import { RESERVED_SLUGS } from '../../web/src/navigation.js';
 import { extname } from 'node:path';
 import { renderPage } from '../lib/content.js';
 import { fail } from '../lib/errors.js';
@@ -49,6 +50,7 @@ export function createPagesResolvers({ db }) {
 
     Mutation: withPermission('MANAGE_PAGES', {
       async savePage(_, { slug, title, ...input }) {
+        if (RESERVED_SLUGS.includes(slug)) fail(`網址「/${slug}」已經用於網站功能，請換一個`);
         const { format, source } = await pageSource(input);
         return db.prepare(`
           INSERT INTO pages (slug, title, format, source) VALUES ($1, $2, $3, $4)
