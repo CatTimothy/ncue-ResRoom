@@ -1,5 +1,6 @@
 import { ref } from 'vue';
 import { cache } from './cache.js';
+import { SITE_DATA_URL } from './siteData.js';
 
 /** 目前登入的使用者；null 表示未登入 */
 export const currentUser = ref(null);
@@ -288,6 +289,29 @@ export const deleteDocuments = (ids) => mutate(
   { ids },
   `已刪除 ${ids.length} 份文件`,
 );
+
+// 網站資料
+/**
+ * 上傳網站資料檔案，取代所有內容。用 XMLHttpRequest 才能回報上傳進度（onProgress 收到 0～1）；
+ * 回傳 { counts, missingFiles }
+ */
+export async function importSiteData(file, onProgress = () => {}) {
+  const request = new XMLHttpRequest();
+  const done = new Promise((resolve, reject) => {
+    request.upload.onprogress = (event) => event.lengthComputable && onProgress(event.loaded / event.total);
+    request.onload = () => resolve();
+    request.onerror = () => reject(new Error('無法連線到伺服器，或伺服器中斷了上傳，請再試一次。'));
+  });
+  request.open('POST', SITE_DATA_URL);
+  request.send(file);
+  await done;
+  if (request.status === 401) throw sessionExpired();
+  if (request.status !== 200) {
+    throw new Error(request.getResponseHeader('Content-Type')?.startsWith('text/plain') ? request.responseText : `伺服器發生錯誤（${request.status}），請稍後再試一次。`);
+  }
+  publish('網站資料已匯入');
+  return JSON.parse(request.responseText);
+}
 
 // 登入
 const USER_FIELDS = 'username permissions';

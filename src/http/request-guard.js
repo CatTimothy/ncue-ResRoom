@@ -6,7 +6,8 @@ import { respond } from './respond.js';
 // 上傳檔案需要權限，且照片不限大小，所以只限制一般請求
 const MAX_JSON_BODY = 4 * 1024 * 1024;
 
-function isAllowedOrigin(origin, host, allowedOrigins) {
+/** 沒有 Origin（非瀏覽器）、在 CORS_ORIGINS 裡，或和網站同一個 host */
+export function isAllowedOrigin(origin, host, allowedOrigins) {
   if (!origin || allowedOrigins.includes(origin)) return true;
   try {
     return new URL(origin).host === host;

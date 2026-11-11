@@ -5,8 +5,10 @@ import { can, currentUser, fetchPages, saveSiteSettings, userChecked } from '../
 import EditorForm from '../components/EditorForm.vue';
 import ImageField from '../components/ImageField.vue';
 import NavEditor from '../components/NavEditor.vue';
+import SiteData from '../components/SiteData.vue';
 import { linkInput, mapMenus, navigationKeys } from '../navigation.js';
 import { DEFAULT_IMAGES, navigation, siteConfig } from '../siteConfig.js';
+import { SITE_DATA_PERMISSIONS } from '../siteData.js';
 import { defaultColors, THEME_COLORS } from '../theme.js';
 import { useCachedItem } from '../useCachedItem.js';
 import { useLeaveGuard } from '../useEditMode.js';
@@ -176,5 +178,10 @@ const leave = () => router.push('/');
         </div>
       </fieldset>
     </EditorForm>
+
+    <!-- 在表單外：輸出與匯入不必先儲存設定，也不受「尚未儲存」的提醒影響 -->
+    <div v-if="form.navigation && SITE_DATA_PERMISSIONS.every(can)" class="form form--page site-data">
+      <SiteData />
+    </div>
   </div>
 </template>

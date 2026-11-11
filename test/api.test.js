@@ -1484,3 +1484,113 @@ test('create-user creates a user and can reset a forgotten password', async () =
     await dropDatabase(database.name);
   }
 });
+
+/** 對另一個網站實例送出請求 */
+function siteClient(site, headers) {
+  return {
+    gql: async (query, variables) => (await post(site.base, query, variables, headers)).json(),
+    async upload(query, variables, file, filename) {
+      const form = new FormData();
+      form.set('operations', JSON.stringify({ query, variables: { ...variables, file: null } }));
+      form.set('map', JSON.stringify({ 0: ['variables.file'] }));
+      form.set('0', new Blob([file]), filename);
+      return (await fetch(`${site.base}/graphql`, { method: 'POST', headers, body: form })).json();
+    },
+    download: async (path) => Buffer.from(await (await fetch(`${site.base}${path}`, { headers })).arrayBuffer()),
+  };
+}
+
+test('site data exports to a file that replaces another site\'s content', async () => {
+  const source = await start();
+  const target = await start();
+  try {
+    const sourceAuth = (await login(USER.username, USER.password, source.base)).headers;
+    const targetAuth = (await login(USER.username, USER.password, target.base)).headers;
+    const from = siteClient(source, sourceAuth);
+    const to = siteClient(target, targetAuth);
+
+    await from.gql(SAVE_PAGE, { slug: 'about', title: '簡介', content: '# 你好', format: 'MARKDOWN' });
+    await from.gql('mutation { saveNavigation(input: { utility: [{ service: HOME }], main: [{ page: "about" }] }) { main { page { slug } } } }');
+    const announcement = (await from.gql(SAVE_ANNOUNCEMENT, { title: '公告', content: '內容' })).data.saveAnnouncement;
+    const album = (await from.gql(SAVE_ALBUM, { name: '110(1)參訪', eventDate: '2021-10-01' })).data.saveAlbum;
+    const photo = (await from.upload(UPLOAD_PHOTO, { alt: '合照', albumId: album.id }, PNG, 'a.png')).data.uploadPhoto;
+    const document = (await from.upload(UPLOAD_DOCUMENT, { title: '申請表', category: '其他' }, 'document body', 'a.pdf')).data.uploadDocument;
+    const { url: logoUrl } = (await from.upload('mutation ($file: File!) { uploadContentImage(file: $file) { url } }', {}, PNG, 'logo.png')).data.uploadContentImage;
+    const config = (await from.gql(`{ siteConfig { ${CONFIG_FIELDS} } }`)).data.siteConfig;
+    await from.gql(SAVE_CONFIG, { input: { ...config, siteTitle: '匯出的網站', logoUrl } });
+
+    // 匯入後這些內容要消失，檔案也要刪除
+    await to.gql(SAVE_PAGE, { slug: 'old', title: '舊頁面', content: 'x', format: 'MARKDOWN' });
+    await to.upload(UPLOAD_DOCUMENT, { title: '舊文件' }, 'old', 'old.pdf');
+
+    const exported = await fetch(`${source.base}/site-data`, { headers: sourceAuth });
+    assert.equal(exported.status, 200);
+    assert.match(exported.headers.get('content-disposition'), /^attachment; filename="resroom-\d{4}-\d{2}-\d{2}\.tar"$/);
+    const archive = Buffer.from(await exported.arrayBuffer());
+    assert.equal(archive.length, Number(exported.headers.get('content-length')));
+    assert.equal(archive.length % 512, 0);
+
+    const imported = await fetch(`${target.base}/site-data`, { method: 'POST', headers: targetAuth, body: archive });
+    assert.equal(imported.status, 200);
+    assert.deepEqual(await imported.json(), {
+      counts: { pages: 1, announcements: 1, albums: 1, photos: 2, documents: 1 },
+      missingFiles: 0,
+    });
+
+    assert.deepEqual((await to.gql('{ pages { slug title } }')).data.pages, [{ slug: 'about', title: '簡介' }]);
+    assert.deepEqual((await to.gql('{ navigation { main { page { slug } } } }')).data.navigation.main, [{ page: { slug: 'about' } }]);
+    assert.equal((await to.gql(`{ siteConfig { siteTitle logoUrl } }`)).data.siteConfig.siteTitle, '匯出的網站');
+    assert.equal((await to.gql(`query ($id: ID!) { announcement(id: $id) { title } }`, { id: announcement.id })).data.announcement.title, '公告');
+    const documents = (await to.gql('{ documents { id title url } }')).data.documents;
+    assert.deepEqual(documents, [{ id: document.id, title: '申請表', url: document.url }]);
+    assert.equal((await to.download(document.url)).toString(), 'document body');
+    assert.deepEqual(await to.download(photo.originalUrl), PNG);
+    assert.equal((await fetch(`${target.base}${logoUrl}`)).status, 200); // 壓縮版重新產生
+    // 只剩匯入的照片與文件（另有 2 張照片的壓縮版在 display）
+    assert.equal(readdirSync(join(target.dataDir, 'uploads')).length, 3);
+
+    // 帳號不受影響；之後新增的資料接著原本的 id 編號
+    assert.equal((await to.gql('{ me { username } }')).data.me.username, USER.username);
+    const next = (await to.gql(SAVE_ANNOUNCEMENT, { title: '新公告', content: 'x' })).data.saveAnnouncement;
+    assert.ok(Number(next.id) > Number(announcement.id));
+
+    // 再匯入同一份資料，結果不變
+    const again = await fetch(`${target.base}/site-data`, { method: 'POST', headers: targetAuth, body: archive });
+    assert.equal(again.status, 200);
+    assert.equal((await to.gql('{ announcements { title } }')).data.announcements.length, 1);
+    assert.deepEqual(await to.download(photo.originalUrl), PNG);
+  } finally {
+    await source.stop();
+    await target.stop();
+  }
+});
+
+test('site data needs every content permission and rejects other files', async () => {
+  assert.equal((await fetch(`${app.base}/site-data`)).status, 401);
+  const partial = await loginWith('partial.editor', ['MANAGE_PAGES', 'MANAGE_SITE_CONFIG']);
+  assert.equal((await fetch(`${app.base}/site-data`, { headers: partial })).status, 403);
+  assert.equal((await fetch(`${app.base}/site-data`, { method: 'POST', headers: partial, body: 'x' })).status, 403);
+
+  const crossOrigin = await fetch(`${app.base}/site-data`, { method: 'POST', headers: { ...auth, Origin: 'https://evil.example' }, body: 'x' });
+  assert.equal(crossOrigin.status, 403);
+
+  const pagesBefore = (await gql('{ pages { slug } }')).data.pages;
+  const garbage = await fetch(`${app.base}/site-data`, { method: 'POST', headers: auth, body: Buffer.alloc(2048, 1) });
+  assert.equal(garbage.status, 400);
+  assert.match(await garbage.text(), /損毀|網站資料/);
+
+  // 格式正確但檔名想跳出上傳資料夾
+  const { tarHeader, tarPadding, TAR_END } = await import('../src/lib/tar.js');
+  const json = Buffer.from(JSON.stringify({
+    format: 'ncue-resroom-site-data',
+    version: 1,
+    tables: { photos: [{ id: 1, stored_name: '../../evil.png', alt: 'x' }] },
+  }));
+  const evil = Buffer.concat([tarHeader('data.json', json.length), json, tarPadding(json.length), TAR_END]);
+  const rejected = await fetch(`${app.base}/site-data`, { method: 'POST', headers: auth, body: evil });
+  assert.equal(rejected.status, 400);
+  assert.equal(await rejected.text(), '網站資料裡有不正確的檔名');
+
+  assert.deepEqual((await gql('{ pages { slug } }')).data.pages, pagesBefore);
+  assert.ok(!readdirSync(join(app.dataDir, 'uploads')).some((name) => name.startsWith('.import-')));
+});

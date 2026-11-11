@@ -13,6 +13,7 @@ export default defineConfig({
     proxy: {
       '/graphql': { target },
       '/files': { target },
+      '/site-data': { target },
     },
   },
 });

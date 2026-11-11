@@ -402,6 +402,67 @@ CREATE OR REPLACE VIEW image_references (text) AS
   UNION ALL SELECT source FROM pages
   UNION ALL SELECT concat_ws(' ', favicon_url, logo_url, campus_url) FROM site_config;
 
+-- PostgreSQL 13 沒有 array_reverse
+CREATE OR REPLACE FUNCTION array_reversed(items TEXT[]) RETURNS TEXT[] LANGUAGE sql IMMUTABLE AS $$
+  SELECT array_agg(items[i] ORDER BY i DESC) FROM generate_subscripts(items, 1) AS i
+$$;
+
+-- 網站資料的輸出與匯入（src/http/site-data.js）包含的資料表，依匯入的順序（被參照的在前）。
+-- 帳號與登入狀態不包含在內。新增資料表時加在這裡
+CREATE OR REPLACE FUNCTION site_data_tables() RETURNS TEXT[] LANGUAGE sql IMMUTABLE AS $$
+  SELECT ARRAY['pages', 'announcements', 'albums', 'photos', 'documents', 'site_config', 'navigation_links', 'daily_visits']
+$$;
+
+-- 所有網站資料，{"資料表": [資料列, ...]}，欄位名稱是 snake_case。
+-- STABLE 函式裡的查詢共用同一個快照，輸出時有人在編輯也不會得到前後不一致的資料
+CREATE OR REPLACE FUNCTION export_site() RETURNS JSONB LANGUAGE plpgsql STABLE AS $$
+DECLARE
+  tbl TEXT;
+  rows JSONB;
+  result JSONB := '{}';
+BEGIN
+  FOREACH tbl IN ARRAY site_data_tables() LOOP
+    EXECUTE format('SELECT COALESCE(jsonb_agg(to_jsonb(t)), ''[]'') FROM %I t', tbl) INTO rows;
+    result := result || jsonb_build_object(tbl, rows);
+  END LOOP;
+  RETURN result;
+END $$;
+
+-- 用 export_site() 的資料整份取代網站資料；失敗時整份都不變。
+-- 只寫入資料裡有的欄位，舊版輸出的資料缺少新欄位時使用預設值；資料裡沒有的資料表會變成空的
+CREATE OR REPLACE FUNCTION import_site(tables JSONB) RETURNS VOID LANGUAGE plpgsql AS $$
+DECLARE
+  tbl TEXT;
+  cols TEXT;
+BEGIN
+  FOREACH tbl IN ARRAY array_reversed(site_data_tables()) LOOP
+    EXECUTE format('DELETE FROM %I', tbl);
+  END LOOP;
+
+  FOREACH tbl IN ARRAY site_data_tables() LOOP
+    CONTINUE WHEN jsonb_typeof(tables -> tbl) IS DISTINCT FROM 'array';
+    SELECT string_agg(quote_ident(c.column_name), ', ' ORDER BY c.ordinal_position) INTO cols
+    FROM information_schema.columns c
+    WHERE c.table_schema = current_schema() AND c.table_name = tbl
+      AND EXISTS (SELECT FROM jsonb_array_elements(tables -> tbl) AS r WHERE jsonb_typeof(r) = 'object' AND r ? c.column_name);
+    CONTINUE WHEN cols IS NULL;
+    EXECUTE format(
+      'INSERT INTO %I (%s) OVERRIDING SYSTEM VALUE SELECT %s FROM jsonb_populate_recordset(NULL::%I, $1)',
+      tbl, cols, cols, tbl
+    ) USING tables -> tbl;
+  END LOOP;
+
+  INSERT INTO site_config DEFAULT VALUES ON CONFLICT DO NOTHING;
+
+  -- 保留原本的 id，之後新增的資料從最大的 id 往後編號
+  FOREACH tbl IN ARRAY ARRAY['announcements', 'albums', 'photos', 'documents'] LOOP
+    EXECUTE format(
+      'SELECT setval(pg_get_serial_sequence(%L, ''id''), COALESCE((SELECT max(id) FROM %I), 0) + 1, false)',
+      tbl, tbl
+    );
+  END LOOP;
+END $$;
+
 -- 寫入時去除頭尾空白的欄位。新增文字欄位時記得加在這裡。
 -- 只在觸發程序不存在或欄位清單改變時重建，啟動時不用每次鎖住資料表
 DO $$

@@ -19,3 +19,6 @@ export const CONTENT_IMAGE_PERMISSIONS = ['MANAGE_ANNOUNCEMENTS', 'MANAGE_PAGES'
 
 /** 有其中一項才能上傳檔案。上傳不限大小，所以要在解析請求前就擋下其他帳號 */
 export const UPLOAD_PERMISSIONS = [...CONTENT_IMAGE_PERMISSIONS, 'MANAGE_ALBUMS', 'MANAGE_DOCUMENTS'];
+
+/** 輸出與匯入網站資料（src/http/site-data.js）要有全部的內容權限：輸出包含未發布的內容，匯入會取代所有內容 */
+export const SITE_DATA_PERMISSIONS = ALL_PERMISSIONS.filter((permission) => permission !== 'MANAGE_USERS');
