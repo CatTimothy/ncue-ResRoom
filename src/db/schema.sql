@@ -111,6 +111,31 @@ CREATE TABLE IF NOT EXISTS pages (
   CONSTRAINT pages_slug_check CHECK (slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$' AND char_length(slug) <= 100)
 );
 
+-- 頁面的網址：root 是 true 時在第一層（/about），否則在 /pages 底下（/pages/about）。
+-- 升級舊資料庫：原本有固定網址的頁面放在第一層，其他的在 /pages 底下
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT FROM information_schema.columns
+    WHERE table_schema = current_schema() AND table_name = 'pages' AND column_name = 'root'
+  ) THEN
+    ALTER TABLE pages ADD COLUMN root BOOLEAN NOT NULL DEFAULT false;
+    UPDATE pages SET root = true WHERE slug IN ('about', 'services', 'members', 'regulations', 'map');
+  END IF;
+
+  -- 建立時間；舊的頁面沒有記錄，沿用最後修改的時間
+  IF NOT EXISTS (
+    SELECT FROM information_schema.columns
+    WHERE table_schema = current_schema() AND table_name = 'pages' AND column_name = 'created_at'
+  ) THEN
+    ALTER TABLE pages ADD COLUMN created_at TIMESTAMPTZ;
+    UPDATE pages SET created_at = updated_at;
+    ALTER TABLE pages
+      ALTER COLUMN created_at SET NOT NULL,
+      ALTER COLUMN created_at SET DEFAULT now();
+  END IF;
+END $$;
+
 CREATE TABLE IF NOT EXISTS announcements (
   id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   title       title_text NOT NULL,
@@ -321,7 +346,7 @@ BEGIN
   CREATE TABLE navigation_links (
     menu      nav_menu NOT NULL,
     position  INTEGER NOT NULL,
-    page_slug TEXT UNIQUE REFERENCES pages (slug) ON DELETE CASCADE,
+    page_slug TEXT UNIQUE REFERENCES pages (slug) ON DELETE CASCADE ON UPDATE CASCADE,
     service   nav_service UNIQUE,
     PRIMARY KEY (menu, position),
     CONSTRAINT navigation_links_target_check CHECK ((page_slug IS NULL) <> (service IS NULL))
@@ -351,6 +376,16 @@ BEGIN
 END $$;
 
 ALTER TABLE site_config DROP COLUMN IF EXISTS navigation;
+
+-- 修改頁面網址（slug）時，選單裡的連結跟著改
+DO $$
+BEGIN
+  IF EXISTS (SELECT FROM pg_constraint WHERE conname = 'navigation_links_page_slug_fkey' AND confupdtype <> 'c') THEN
+    ALTER TABLE navigation_links
+      DROP CONSTRAINT navigation_links_page_slug_fkey,
+      ADD CONSTRAINT navigation_links_page_slug_fkey FOREIGN KEY (page_slug) REFERENCES pages (slug) ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
 DROP FUNCTION IF EXISTS is_navigation(JSONB);
 
 -- 整份取代頁首選單；links 是 navigation_links 欄位組成的 JSON 陣列。寫成一個函式，失敗時整份都不變

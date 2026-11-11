@@ -144,7 +144,7 @@ export const saveNavigation = (navigation) => mutate(
 );
 
 // 頁首選單
-const NAV_LINK_FIELDS = 'service page { slug title }';
+const NAV_LINK_FIELDS = 'service page { slug title root }';
 
 export const fetchNavigation = () => query(
   `{ navigation { utility { ${NAV_LINK_FIELDS} } main { ${NAV_LINK_FIELDS} } } }`,
@@ -226,16 +226,19 @@ export const updatePhoto = ({ id, alt, albumId }) => mutate(
 export const deletePhoto = deleter('deletePhoto', '照片已刪除');
 
 // 頁面
-export const fetchPages = () => query('{ pages { slug title } }');
-export const fetchPage = (slug) => query('query ($slug: String!) { page(slug: $slug) { slug title format html } }', { slug });
-export const fetchPageSource = (slug) => query('query ($slug: String!) { page(slug: $slug) { title format source } }', { slug });
+export const fetchPages = () => query('{ pages { slug title root createdAt updatedAt } }');
+export const fetchPage = (slug) => query('query ($slug: String!) { page(slug: $slug) { slug root title format html updatedAt } }', { slug });
+export const fetchPageSource = (slug) => query('query ($slug: String!) { page(slug: $slug) { slug root title format source } }', { slug });
 
-/** format 是 MARKDOWN 或 HTML */
-export const savePage = ({ slug, title, format, content }) => mutate(
-  `mutation ($slug: String!, $title: String!, $format: ContentFormat!, $content: String!) {
-    savePage(slug: $slug, title: $title, format: $format, content: $content) { slug }
+/**
+ * format 是 MARKDOWN 或 HTML；root 決定網址在第一層或 /pages 底下。
+ * previousSlug 是修改網址前的 slug。新增的頁面會由伺服器加到主選單的最後
+ */
+export const savePage = ({ slug, root = false, previousSlug = null, title, format, content }) => mutate(
+  `mutation ($slug: String!, $root: Boolean, $previousSlug: String, $title: String!, $format: ContentFormat!, $content: String!) {
+    savePage(slug: $slug, root: $root, previousSlug: $previousSlug, title: $title, format: $format, content: $content) { slug root }
   }`,
-  { slug, title, format, content },
+  { slug, root, previousSlug, title, format, content },
   '頁面已儲存',
 );
 

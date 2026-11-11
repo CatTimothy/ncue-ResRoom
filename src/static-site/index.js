@@ -349,7 +349,7 @@ const documentsPage = (site) => layout(site, '/documents', '文件下載', (u) =
     </div>
   </div>`);
 
-const contentPage = (site, page) => layout(site, pagePath(page.slug), page.title, (u) => html`
+const contentPage = (site, page) => layout(site, pagePath(page), page.title, (u) => html`
   <div class="page">
     <div class="album-head"><h1 class="stop">${page.title}</h1></div>
     ${articleBody(renderPage(page), u, ' article')}
@@ -426,7 +426,7 @@ export async function buildStaticSite({ db, storage, publicDir }) {
     ['photos/index.html', albumsPage(site)],
     ...site.albums.map((album) => [`photos/${album.id}/index.html`, albumPage(site, album)]),
     ['documents/index.html', documentsPage(site)],
-    ...site.pages.map((page) => [`${pagePath(page.slug).slice(1)}/index.html`, contentPage(site, page)]),
+    ...site.pages.map((page) => [`${pagePath(page).slice(1)}/index.html`, contentPage(site, page)]),
   ];
 
   // 沒有上傳的圖片用網站內建的示範圖片

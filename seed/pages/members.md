@@ -1,5 +1,6 @@
 ---
 title: 成員介紹
+path: /members
 ---
 
 ## 陳縈媺

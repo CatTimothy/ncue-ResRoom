@@ -1,5 +1,6 @@
 // 讀出網站資料的內容（還沒寫進資料庫）。圖片與文件只記路徑，用到時才用 source.read 讀取
 import { basename, extname, posix } from 'node:path';
+import { parsePageUrl } from '../../web/src/navigation.js';
 import { fail } from '../lib/errors.js';
 import { parseFrontMatter, textOf } from './format.js';
 
@@ -29,7 +30,10 @@ export async function readSite(source) {
     const format = match && PAGE_FORMATS[match[2].toLowerCase()];
     if (!format) continue;
     const { data, body } = parseFrontMatter(await text(path));
-    pages.push({ slug: match[1], title: String(data.title ?? match[1]), format, source: body, updatedAt: data.updatedAt ?? null });
+    // front matter 的 path 決定網址（/about 在第一層，/pages/about 或沒寫在 /pages 底下）；沒寫時 slug 是檔名
+    const url = data.path ? parsePageUrl(String(data.path)) : { slug: match[1], root: false };
+    if (!url) fail(`「${path}」的 path 格式不正確`);
+    pages.push({ ...url, title: String(data.title ?? url.slug), format, source: body, createdAt: data.createdAt ?? null, updatedAt: data.updatedAt ?? null });
   }
 
   const announcements = [];

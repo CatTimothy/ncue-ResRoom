@@ -1,7 +1,7 @@
 import { nextTick } from 'vue';
 import { createRouter, createWebHistory } from 'vue-router';
 import { canAnimate } from './motion.js';
-import { BUILT_IN_PAGES, pagePath, SERVICES } from './navigation.js';
+import { BUILT_IN_PAGES, SERVICES } from './navigation.js';
 import { focusMain, setTitle } from './page.js';
 import Album from './views/Album.vue';
 import Albums from './views/Albums.vue';
@@ -27,15 +27,23 @@ export const router = createRouter({
     { path: `${SERVICES.PHOTOS.to}/:id`, component: Album, props: true, meta: { title: SERVICES.PHOTOS.label } },
     { path: SERVICES.DOCUMENTS.to, component: Documents, meta: { title: SERVICES.DOCUMENTS.label } },
     { path: '/pages', component: Pages, meta: { title: '所有頁面' } },
-    { path: '/pages/:slug', redirect: (to) => ({ path: pagePath(to.params.slug), query: to.query, hash: to.hash }) },
+    // 頁面的網址：/pages/<slug>，或設定在第一層的 /<slug>（見 navigation.js 的 pagePath）
+    {
+      path: '/pages/:slug',
+      component: PageView,
+      props: (to) => ({ slug: to.params.slug, root: false, fallbackTitle: BUILT_IN_PAGES[to.params.slug] ?? '' }),
+      meta: { title: '' },
+    },
     { path: '/settings', component: SiteSettings, meta: { title: '網站設定' } },
     // 登入是頁首開啟的視窗；舊的 /login 連結回到原本的頁面並開啟視窗
     { path: '/login', redirect: (to) => ({ path: safeRedirect(to.query.redirect), query: { login: '1' } }) },
-    // 頁面直接在第一層，例如 /about、/test；上面的網站功能優先
+    // 放在第一層的頁面，例如 /about、/test；上面的網站功能優先
     {
-      path: '/:slug([a-z0-9]+(?:-[a-z0-9]+)*)',
+      // vue-router 的參數規則不能有括號；網址格式由資料庫的 pages_slug_check 檢查
+      path: '/:slug([a-z0-9][a-z0-9-]*)',
+      sensitive: true, // 頁面網址只有小寫，/Test 不是頁面
       component: PageView,
-      props: (to) => ({ slug: to.params.slug, fallbackTitle: BUILT_IN_PAGES[to.params.slug] ?? '' }),
+      props: (to) => ({ slug: to.params.slug, root: true, fallbackTitle: BUILT_IN_PAGES[to.params.slug] ?? '' }),
       meta: { title: '' },
     },
     { path: '/:rest(.*)*', component: NotFound, meta: { title: '找不到頁面' } },

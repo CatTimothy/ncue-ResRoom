@@ -111,8 +111,8 @@ async function login(username, password, base = app.base) {
 const newAlbum = async (name) => (await gql(SAVE_ALBUM, { name })).data.saveAlbum;
 const uploadsCount = () => readdirSync(join(app.dataDir, 'uploads')).length;
 
-const SAVE_PAGE = `mutation ($slug: String!, $title: String!, $content: String, $format: ContentFormat, $file: File) {
-  savePage(slug: $slug, title: $title, content: $content, format: $format, file: $file) { slug title format source html }
+const SAVE_PAGE = `mutation ($slug: String!, $title: String!, $content: String, $format: ContentFormat, $file: File, $root: Boolean, $previousSlug: String) {
+  savePage(slug: $slug, title: $title, content: $content, format: $format, file: $file, root: $root, previousSlug: $previousSlug) { slug title format source html }
 }`;
 const SAVE_ANNOUNCEMENT = `mutation ($id: ID, $title: String!, $content: String!) {
   saveAnnouncement(id: $id, title: $title, content: $content) { id title content html createdAt modifiedAt publishedAt }
@@ -740,8 +740,14 @@ const resetNavigation = () => saveNavigation({
 });
 
 test('navigation starts with the site features the web app shows before it loads', async () => {
-  const { navigation } = (await gql(NAVIGATION, {}, {})).data;
-  assert.deepEqual(navigation, DEFAULT_NAVIGATION);
+  // 新增頁面會加進選單，所以用全新的網站檢查
+  const site = await start();
+  try {
+    const { navigation } = await (await post(site.base, NAVIGATION, {})).json().then((body) => body.data);
+    assert.deepEqual(navigation, DEFAULT_NAVIGATION);
+  } finally {
+    await site.stop();
+  }
 });
 
 test('navigation links pages and site features, and only MANAGE_SITE_CONFIG can change it', async () => {
@@ -1562,7 +1568,7 @@ test('site data exports the seed folder format and replaces another site\'s cont
     // 和 seed/ 一樣的資料夾結構
     const files = unzip(archive);
     const text = (name) => files.get(name)?.toString('utf8');
-    assert.match(text('pages/about.md'), /^---\ntitle: "簡介"\nupdatedAt: "[^"]+"\n---\n\n# 你好\n\n!\[地圖\]\(\{\{image:map\.png\}\}\)\n\n\[表單\]\(\{\{document:115學年度第一學期\/a\.pdf\}\}\)$/);
+    assert.match(text('pages/about.md'), /^---\ntitle: "簡介"\npath: "\/pages\/about"\ncreatedAt: "[^"]+"\nupdatedAt: "[^"]+"\n---\n\n# 你好\n\n!\[地圖\]\(\{\{image:map\.png\}\}\)\n\n\[表單\]\(\{\{document:115學年度第一學期\/a\.pdf\}\}\)$/);
     assert.deepEqual(files.get('images/map.png'), PNG);
     assert.equal(text('documents/115學年度第一學期/a.pdf'), 'document body');
     assert.deepEqual(JSON.parse(text('documents/documents.json')).map(({ file, title, category }) => ({ file, title, category })),
@@ -1705,7 +1711,7 @@ test('the static site download contains public content as linked HTML files', as
     const client = siteClient(site, headers);
     assert.equal((await fetch(`${site.base}/static-site`)).status, 401);
 
-    await client.gql(SAVE_PAGE, { slug: 'about', title: '簡介', content: '[公告](/announcements) ![地圖](/files/display/00000000-0000-0000-0000-000000000000.webp)', format: 'MARKDOWN' });
+    await client.gql(SAVE_PAGE, { slug: 'about', title: '簡介', content: '[公告](/announcements) ![地圖](/files/display/00000000-0000-0000-0000-000000000000.webp)', format: 'MARKDOWN', root: true });
     await client.gql(SAVE_PAGE, { slug: 'extra', title: '其他 & 更多', content: '<p>x</p>', format: 'HTML' });
     const published = (await client.gql(SAVE_ANNOUNCEMENT, { title: '已發布<公告>', content: '內容' })).data.saveAnnouncement;
     const scheduled = (await client.gql(
@@ -1741,7 +1747,8 @@ test('the static site download contains public content as linked HTML files', as
     assert.match(about, /href="..\/assets\/index-abc.css"/);
     assert.match(about, /src="..\/logo.webp"/);
     assert.match(about, /src="..\/site.js"/);
-    assert.ok(text('extra/index.html').includes('<title>其他 &#38; 更多｜'));
+    assert.ok(text('pages/extra/index.html').includes('<title>其他 &#38; 更多｜'));
+    assert.match(text('pages/extra/index.html'), /href="..\/..\/announcements\/index.html"/);
     assert.match(text('index.html'), /href="announcements\/index.html"/);
     assert.equal(text('assets/index-abc.css'), 'body{font-family:x;src:url(./font-1.woff2)}');
     assert.equal(text('assets/font-1.woff2'), 'font');
@@ -1753,8 +1760,38 @@ test('the static site download contains public content as linked HTML files', as
   }
 });
 
-test('pages live at the top level, so slugs used by the site are refused', async () => {
-  const { errors } = await gql(SAVE_PAGE, { slug: 'photos', title: '照片', content: 'x', format: 'MARKDOWN' });
+test('pages go under /pages or at the top level, join the main menu when created and can change their URL', async () => {
+  const PAGE = '{ page(slug: "url-test") { slug root path createdAt updatedAt } }';
+  const mainSlugs = async () => slugsOf((await gql(NAVIGATION)).data.navigation.main);
+
+  // 網站功能用掉的網址只有放在第一層時不行
+  const { errors } = await gql(SAVE_PAGE, { slug: 'photos', title: '照片', content: 'x', format: 'MARKDOWN', root: true });
   assert.match(errors[0].message, /網址「\/photos」已經用於網站功能/);
   assert.equal((await gql('{ page(slug: "photos") { slug } }')).data.page, null);
+
+  await gql(SAVE_PAGE, { slug: 'url-test', title: '網址', content: 'x', format: 'MARKDOWN' });
+  const created = (await gql(PAGE)).data.page;
+  assert.deepEqual([created.root, created.path], [false, '/pages/url-test']);
+  assert.equal(created.createdAt, created.updatedAt);
+  assert.equal((await mainSlugs()).at(-1), 'url-test', 'a new page is added to the end of the main menu');
+
+  // 再存一次是覆蓋，不會重複加進選單；建立時間不變
+  await gql(SAVE_PAGE, { slug: 'url-test', title: '網址', content: 'y', format: 'MARKDOWN', root: true });
+  const saved = (await gql(PAGE)).data.page;
+  assert.deepEqual([saved.root, saved.path, saved.createdAt], [true, '/url-test', created.createdAt]);
+  assert.equal((await mainSlugs()).filter((slug) => slug === 'url-test').length, 1);
+
+  // 修改網址：選單跟著改
+  await gql(SAVE_PAGE, { slug: 'url-test-2', previousSlug: 'url-test', title: '網址', content: 'y', format: 'MARKDOWN' });
+  assert.equal((await gql(PAGE)).data.page, null);
+  assert.equal((await gql('{ page(slug: "url-test-2") { path } }')).data.page.path, '/pages/url-test-2');
+  assert.ok((await mainSlugs()).includes('url-test-2'));
+  assert.ok(!(await mainSlugs()).includes('url-test'));
+
+  // 改成已經有頁面的網址會被拒絕
+  await gql(SAVE_PAGE, { slug: 'url-test-3', title: '另一頁', content: 'z', format: 'MARKDOWN' });
+  const taken = await gql(SAVE_PAGE, { slug: 'url-test-3', previousSlug: 'url-test-2', title: '網址', content: 'y', format: 'MARKDOWN' });
+  assert.equal(taken.errors[0].message, '這個網址已經有頁面了，請換一個');
+
+  for (const slug of ['url-test-2', 'url-test-3']) await gql('mutation ($s: String!) { deletePage(slug: $s) }', { s: slug });
 });

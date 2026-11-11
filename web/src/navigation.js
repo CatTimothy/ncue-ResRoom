@@ -21,14 +21,21 @@ export const DEFAULT_NAVIGATION = {
   main: [{ service: 'ANNOUNCEMENTS', page: null }, { service: 'PHOTOS', page: null }],
 };
 
-/** 網站已經用掉的第一層網址，頁面不能用這些 slug（伺服器的 savePage 也會檢查） */
+/** 網站已經用掉的第一層網址，放在第一層的頁面不能用這些 slug（伺服器的 savePage 也會檢查） */
 export const RESERVED_SLUGS = [
   'announcements', 'photos', 'documents', 'pages', 'settings', 'login',
   'files', 'assets', 'graphql', 'site-data', 'static-site',
 ];
 
-/** 頁面的網址：/<slug>；舊的 /pages/<slug> 會轉過來 */
-export const pagePath = (slug) => `/${slug}`;
+/** 頁面的網址：root 的頁面在第一層（/about），其他的在 /pages 底下（/pages/about） */
+export const pagePath = ({ slug, root }) => (root ? `/${slug}` : `/pages/${slug}`);
+
+/** 頁面網址輸入框的內容：「/test」在第一層，「test」或「/pages/test」在 /pages 底下；格式不對時回傳 null */
+export function parsePageUrl(text) {
+  const match = /^(\/pages\/|\/)?([a-z0-9]+(?:-[a-z0-9]+)*)\/?$/.exec(text.trim());
+  if (!match) return null;
+  return { slug: match[2], root: match[1] === '/' };
+}
 
 /** 對選單的兩列各自套用 fn */
 export const mapMenus = (navigation, fn) => ({ utility: navigation.utility.map(fn), main: navigation.main.map(fn) });
@@ -36,7 +43,7 @@ export const mapMenus = (navigation, fn) => ({ utility: navigation.utility.map(f
 /** API 的連結 { service, page } 換成畫面用的 { key, to, label }；key 是功能名稱或 page:<slug> */
 export const menuLink = ({ service, page }) => (service
   ? { key: service, ...SERVICES[service] }
-  : { key: `page:${page.slug}`, to: pagePath(page.slug), label: page.title });
+  : { key: `page:${page.slug}`, to: pagePath(page), label: page.title });
 
 /** key 換回 saveNavigation 的輸入 */
 export const linkInput = (key) => (key.startsWith('page:') ? { page: key.slice('page:'.length) } : { service: key });

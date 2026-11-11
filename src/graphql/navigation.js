@@ -14,6 +14,8 @@ export const navigationTypeDefs = /* GraphQL */ `
   type NavPage {
     slug: String!
     title: String!
+    "true 時網址在第一層，否則在 /pages 底下"
+    root: Boolean!
   }
 
   "頁首選單的連結：page 與 service 只會有一個"
@@ -53,7 +55,7 @@ export const navigationTypeDefs = /* GraphQL */ `
 const MENUS = { UTILITY: 'utility', MAIN: 'main' };
 
 const LIST = `
-  SELECT n.menu, n.service, p.slug, p.title
+  SELECT n.menu, n.service, p.slug, p.title, p.root
   FROM navigation_links n LEFT JOIN pages p ON p.slug = n.page_slug
   ORDER BY n.menu, n.position
 `;
@@ -69,8 +71,8 @@ export async function writeNavigation(db, navigation) {
 /** 目前的頁首選單 { utility, main }，每項是 { service, page: { slug, title } | null } */
 export async function readNavigation(db) {
   const result = { utility: [], main: [] };
-  for (const { menu, service, slug, title } of await db.prepare(LIST).all()) {
-    result[MENUS[menu]].push({ service, page: slug ? { slug, title } : null });
+  for (const { menu, service, slug, title, root } of await db.prepare(LIST).all()) {
+    result[MENUS[menu]].push({ service, page: slug ? { slug, title, root } : null });
   }
   return result;
 }

@@ -83,8 +83,8 @@ export async function seedContent({ db, storage, seedDir }) {
 
   for (const page of site.pages) {
     if (await db.prepare('SELECT 1 FROM pages WHERE slug = $1').get(page.slug)) continue;
-    await db.prepare('INSERT INTO pages (slug, title, format, source) VALUES ($1, $2, $3, $4)')
-      .run(page.slug, page.title, page.format, await resolveContent(page.source));
+    await db.prepare('INSERT INTO pages (slug, root, title, format, source) VALUES ($1, $2, $3, $4, $5)')
+      .run(page.slug, page.root, page.title, page.format, await resolveContent(page.source));
   }
 
   if (site.navigation && !(await db.prepare('SELECT 1 FROM navigation_links WHERE page_slug IS NOT NULL').get())) {

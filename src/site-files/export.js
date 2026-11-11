@@ -2,6 +2,7 @@
 // 資料取自 schema.sql 的 export_site()，同一個快照，輸出時有人在編輯也不會前後不一致
 import { stat } from 'node:fs/promises';
 import { extname, parse } from 'node:path';
+import { pagePath } from '../../web/src/navigation.js';
 import { safeName, stringifyFrontMatter } from './format.js';
 
 const toCamelCase = (key) => key.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
@@ -75,7 +76,7 @@ export async function exportSiteFiles({ db, storage }) {
   for (const page of tables.pages) {
     entries.push({
       name: unique(`pages/${page.slug}.${page.format === 'HTML' ? 'html' : 'md'}`),
-      data: Buffer.from(stringifyFrontMatter({ title: page.title, updatedAt: page.updated_at }, await withPlaceholders(page.source))),
+      data: Buffer.from(stringifyFrontMatter({ title: page.title, path: pagePath(page), createdAt: page.created_at, updatedAt: page.updated_at }, await withPlaceholders(page.source))),
     });
   }
 

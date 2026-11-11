@@ -6,6 +6,7 @@ import ItemStatus from '../components/ItemStatus.vue';
 import NavEditor from '../components/NavEditor.vue';
 import PageEditor from '../components/PageEditor.vue';
 import { linkInput, mapMenus, navigationKeys, pagePath, SERVICES } from '../navigation.js';
+import { rocDateTimeText } from '../format.js';
 import { confirmDelete } from '../page.js';
 import { navigation } from '../siteConfig.js';
 import { useCachedItem } from '../useCachedItem.js';
@@ -36,7 +37,7 @@ const saveMenus = () => run(async () => {
 
 <template>
   <div class="page">
-    <PageEditor v-if="creating" @done="(slug) => router.replace(pagePath(slug))" @cancel="close" />
+    <PageEditor v-if="creating" @done="(path) => router.replace(path)" @cancel="close" />
 
     <template v-else>
       <h1 class="stop">所有頁面</h1>
@@ -74,11 +75,11 @@ const saveMenus = () => run(async () => {
         <ul v-if="pages?.length" class="document-list">
           <li v-for="page in pages" :key="page.slug">
             <div class="document-list__main">
-              <RouterLink :to="pagePath(page.slug)">{{ page.title }}</RouterLink>
-              <small class="edited">{{ pagePath(page.slug) }}</small>
+              <RouterLink :to="pagePath(page)">{{ page.title }}</RouterLink>
+              <small class="edited">{{ pagePath(page) }}，建立於 {{ rocDateTimeText(page.createdAt) }}，編輯於 {{ rocDateTimeText(page.updatedAt) }}</small>
             </div>
             <div v-if="can('MANAGE_PAGES')" class="row-actions">
-              <RouterLink class="button button--small button--quiet" :aria-label="`編輯頁面：${page.title}`" :to="`${pagePath(page.slug)}?edit=1`">編輯</RouterLink>
+              <RouterLink class="button button--small button--quiet" :aria-label="`編輯頁面：${page.title}`" :to="`${pagePath(page)}?edit=1`">編輯</RouterLink>
               <button type="button" class="button button--small button--quiet" :aria-label="`刪除頁面：${page.title}`" @click="remove(page)">刪除</button>
             </div>
           </li>

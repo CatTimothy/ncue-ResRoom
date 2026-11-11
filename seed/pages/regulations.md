@@ -1,5 +1,6 @@
 ---
 title: 法令規章
+path: /regulations
 ---
 
 請點下列連結查看全國法規資料庫的條文。

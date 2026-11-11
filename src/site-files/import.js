@@ -77,7 +77,8 @@ export async function importSite({ db, storage, source }) {
     const pages = [];
     for (const page of site.pages) {
       pages.push({
-        slug: page.slug, title: page.title, format: page.format, source: await replacePlaceholders(page.source, resolve),
+        slug: page.slug, root: page.root, title: page.title, format: page.format, source: await replacePlaceholders(page.source, resolve),
+        ...(page.createdAt && { created_at: page.createdAt }),
         ...(page.updatedAt && { updated_at: page.updatedAt }),
       });
     }

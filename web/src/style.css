@@ -406,6 +406,12 @@ h2 {
   margin-top: 2.5rem;
 }
 
+/* 頁面最下方的建立與編輯時間 */
+.page-dates {
+  display: block;
+  margin-top: 2rem;
+}
+
 /* 所有頁面：頁首選單、網站功能、頁面三個區塊 */
 .pages-section {
   margin-bottom: 2rem;

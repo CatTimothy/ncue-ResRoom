@@ -1,5 +1,6 @@
 ---
 title: 服務項目
+path: /services
 ---
 
 ## 服務對象
