@@ -21,7 +21,6 @@ export const BUILT_IN_PAGES = {
   members: '成員介紹',
   regulations: '法令規章',
   map: '位置圖',
-  contact: '聯絡我們',
 };
 
 export const router = createRouter({

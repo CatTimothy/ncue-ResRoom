@@ -1270,7 +1270,7 @@ test('seed content creates pages and documents once and never overwrites', async
 
   const pages = (await gql('{ pages { slug title html } }')).data.pages;
   const slugs = pages.map((page) => page.slug);
-  for (const slug of ['about', 'services', 'members', 'regulations', 'contact', 'map']) assert.ok(slugs.includes(slug), slug);
+  for (const slug of ['about', 'services', 'members', 'regulations', 'map']) assert.ok(slugs.includes(slug), slug);
   const map = pages.find((page) => page.slug === 'map');
   assert.match(map.html, /<img src="\/files\/display\/[0-9a-f-]{36}\.webp"/);
   const image = /src="([^"]+)"/.exec(map.html)[1];

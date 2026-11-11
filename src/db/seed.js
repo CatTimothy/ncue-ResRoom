@@ -6,7 +6,6 @@ const PAGES = [
   ['services', '服務項目'],
   ['members', '成員介紹'],
   ['regulations', '法令規章'],
-  ['contact', '聯絡我們'],
   ['map', '位置圖'],
 ];
 const DOCUMENT_CATEGORY = '111學年度第一學期';

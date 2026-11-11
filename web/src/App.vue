@@ -40,7 +40,6 @@ async function signOut() {
         <RouterLink to="/" exact-active-class="is-current">首頁</RouterLink>
         <RouterLink to="/map" active-class="is-current">位置圖</RouterLink>
         <RouterLink to="/documents" active-class="is-current">文件下載</RouterLink>
-        <RouterLink to="/contact" active-class="is-current">聯絡我們</RouterLink>
         <template v-if="currentUser">
           <RouterLink to="/pages" active-class="is-current">所有頁面</RouterLink>
           <RouterLink v-if="can('MANAGE_SITE_CONFIG')" to="/settings" active-class="is-current">網站設定</RouterLink>
