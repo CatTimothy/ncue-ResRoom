@@ -630,6 +630,11 @@ h2 {
   height: auto;
 }
 
+/* 套件預設輸入區 14px、預覽 16px，比網站內文小；改成和內文一樣大 */
+.markdown-editor .md-editor :is(.cm-editor, .md-editor-preview) {
+  font-size: 1.125rem;
+}
+
 .markdown-editor .md-editor-preview-wrapper {
   overflow: visible;
 }
