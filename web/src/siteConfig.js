@@ -1,14 +1,10 @@
 import { computed, watchEffect } from 'vue';
 import { fetchNavigation, fetchSiteConfig } from './api.js';
+import { DEFAULT_IMAGES } from './defaultImages.js';
 import { pageName } from './page.js';
 import { useCachedItem } from './useCachedItem.js';
 
-/** 圖片欄位是 null 時使用的內建圖片（web/public） */
-export const DEFAULT_IMAGES = {
-  faviconUrl: '/favicon.png',
-  logoUrl: '/logo.webp',
-  campusUrl: '/campus.jpg',
-};
+export { DEFAULT_IMAGES };
 
 /** 全站設定，所有元件共用一份；載入前是 null */
 export const { item: siteConfig } = useCachedItem(() => 'site-config', fetchSiteConfig);

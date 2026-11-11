@@ -273,23 +273,24 @@ BEGIN
   END IF;
 END $$;
 
--- 全站共用的設定，只有一列。預設值是網站原本的內容；圖片是 NULL 時使用 web/public 的內建圖片
+-- 全站共用的設定，只有一列。預設值是示範用的內容（DEMO SCHOOL），實際的學校資料由網站設定或 npm run seed-content（seed/site-config.json）填入；
+-- 圖片是 NULL 時使用 web/public 的內建示範圖片
 CREATE TABLE IF NOT EXISTS site_config (
   id            BOOLEAN PRIMARY KEY DEFAULT true CHECK (id),
-  site_title    TEXT NOT NULL DEFAULT '國立彰化師範大學資源教室',
+  site_title    TEXT NOT NULL DEFAULT '示範學校資源教室',
   logo_text     TEXT NOT NULL DEFAULT '資源教室',
   favicon_url   image_path,
   logo_url      image_path,
   campus_url    image_path,
-  campus_alt    TEXT NOT NULL DEFAULT '彰化師範大學校園：草坪後方的校舍與藍天白雲',
-  hero_prefix   TEXT NOT NULL DEFAULT '國立彰化師範大學',
+  campus_alt    TEXT NOT NULL DEFAULT '示範學校的校園插圖：草坪後方的校舍與藍天白雲',
+  hero_prefix   TEXT NOT NULL DEFAULT '示範學校',
   hero_title    TEXT NOT NULL DEFAULT '資源教室',
   hero_text     TEXT NOT NULL DEFAULT '週一至週五 8:30～17:00 開放',
   footer_title  TEXT NOT NULL DEFAULT '聯絡資源教室',
-  phone         TEXT NOT NULL DEFAULT '(04)7232105',
-  extension     TEXT NOT NULL DEFAULT '轉 5552、5556、5557',
+  phone         TEXT NOT NULL DEFAULT '(02)1234-5678',
+  extension     TEXT NOT NULL DEFAULT '轉 1234',
   hours         TEXT NOT NULL DEFAULT '週一至週五 8:30～17:00',
-  teachers      JSONB NOT NULL DEFAULT '[{"name": "陳縈媺", "email": "chencc@cc.ncue.edu.tw", "extension": "5552"}, {"name": "何宜家", "email": "evea3@cc.ncue.edu.tw", "extension": "5557"}, {"name": "周佳慧", "email": "teresa172@cc.ncue.edu.tw", "extension": "5556"}, {"name": "何佳霖", "email": "annielinn@cc.ncue.edu.tw", "extension": "5556"}]',
+  teachers      JSONB NOT NULL DEFAULT '[{"name": "王老師", "email": "teacher@example.edu", "extension": "1234"}]',
   default_theme theme_mode NOT NULL DEFAULT 'SYSTEM',
   light_theme   theme_colors NOT NULL DEFAULT '{}',
   dark_theme    theme_colors NOT NULL DEFAULT '{}',

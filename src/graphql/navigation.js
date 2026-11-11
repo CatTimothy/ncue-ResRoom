@@ -66,14 +66,17 @@ export async function writeNavigation(db, navigation) {
   await db.prepare('SELECT save_navigation($1)').run(JSON.stringify(links));
 }
 
-export function createNavigationResolvers({ db }) {
-  async function navigation() {
-    const result = { utility: [], main: [] };
-    for (const { menu, service, slug, title } of await db.prepare(LIST).all()) {
-      result[MENUS[menu]].push({ service, page: slug ? { slug, title } : null });
-    }
-    return result;
+/** 目前的頁首選單 { utility, main }，每項是 { service, page: { slug, title } | null } */
+export async function readNavigation(db) {
+  const result = { utility: [], main: [] };
+  for (const { menu, service, slug, title } of await db.prepare(LIST).all()) {
+    result[MENUS[menu]].push({ service, page: slug ? { slug, title } : null });
   }
+  return result;
+}
+
+export function createNavigationResolvers({ db }) {
+  const navigation = () => readNavigation(db);
 
   return {
     Query: { navigation },

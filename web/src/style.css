@@ -406,6 +406,11 @@ h2 {
   margin-top: 2.5rem;
 }
 
+/* 所有頁面：頁首選單、網站功能、頁面三個區塊 */
+.pages-section {
+  margin-bottom: 2rem;
+}
+
 .site-data__text {
   margin: 0;
 }

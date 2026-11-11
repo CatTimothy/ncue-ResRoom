@@ -130,13 +130,17 @@ const SITE_CONFIG_FIELDS = `siteTitle logoText faviconUrl logoUrl campusUrl camp
 export const fetchSiteConfig = () => query(`{ siteConfig { ${SITE_CONFIG_FIELDS} } }`);
 
 /** 網站設定與頁首選單在同一個請求儲存；navigation 是 { utility, main }，每項是 { page } 或 { service } */
-export const saveSiteSettings = (input, navigation) => mutate(
-  `mutation ($input: SiteConfigInput!, $navigation: NavigationInput!) {
-    saveNavigation(input: $navigation) { main { service } }
-    saveSiteConfig(input: $input) { siteTitle }
-  }`,
-  { input, navigation },
+export const saveSiteSettings = (input) => mutate(
+  'mutation ($input: SiteConfigInput!) { saveSiteConfig(input: $input) { siteTitle } }',
+  { input },
   '網站設定已儲存',
+);
+
+/** 頁首選單在「所有頁面」編輯，需要 MANAGE_SITE_CONFIG */
+export const saveNavigation = (navigation) => mutate(
+  'mutation ($navigation: NavigationInput!) { saveNavigation(input: $navigation) { main { service } } }',
+  { navigation },
+  '頁首選單已儲存',
 );
 
 // 頁首選單

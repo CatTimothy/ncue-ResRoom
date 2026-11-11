@@ -1,16 +1,14 @@
 <script setup>
 import { watch } from 'vue';
 import { useRouter } from 'vue-router';
-import { can, currentUser, fetchPages, saveSiteSettings, userChecked } from '../api.js';
+import { can, currentUser, saveSiteSettings, userChecked } from '../api.js';
 import EditorForm from '../components/EditorForm.vue';
 import ImageField from '../components/ImageField.vue';
-import NavEditor from '../components/NavEditor.vue';
 import SiteData from '../components/SiteData.vue';
-import { linkInput, mapMenus, navigationKeys } from '../navigation.js';
-import { DEFAULT_IMAGES, navigation, siteConfig } from '../siteConfig.js';
+import StaticSite from '../components/StaticSite.vue';
+import { DEFAULT_IMAGES, siteConfig } from '../siteConfig.js';
 import { SITE_DATA_PERMISSIONS } from '../siteData.js';
 import { defaultColors, THEME_COLORS } from '../theme.js';
-import { useCachedItem } from '../useCachedItem.js';
 import { useLeaveGuard } from '../useEditMode.js';
 import { useEditor } from '../useEditor.js';
 
@@ -22,7 +20,6 @@ const THEMES = {
 const DEFAULT_COLORS = Object.fromEntries(Object.entries(THEMES).map(([field, { mode }]) => [field, defaultColors(mode)]));
 
 const router = useRouter();
-const { item: pages } = useCachedItem(() => 'pages', fetchPages);
 const { form, changed, busy, error, reset, markSaved, run } = useEditor({});
 useLeaveGuard(changed);
 
@@ -34,12 +31,11 @@ const onlyChanged = (field) => Object.fromEntries(
   Object.entries(form[field]).map(([name, color]) => [name, color === DEFAULT_COLORS[field][name] ? null : color]),
 );
 
-// 設定與選單都載入後填入表單；編輯中不被背景更新蓋掉
-watch([siteConfig, navigation], ([config, nav]) => {
-  if (!config || !nav || changed.value) return;
+// 設定載入後填入表單；編輯中不被背景更新蓋掉
+watch(siteConfig, (config) => {
+  if (!config || changed.value) return;
   reset({
     ...config,
-    navigation: navigationKeys(nav),
     teachers: config.teachers.map((teacher) => ({ ...teacher })),
     lightTheme: withDefaults('lightTheme', config.lightTheme),
     darkTheme: withDefaults('darkTheme', config.darkTheme),
@@ -47,8 +43,7 @@ watch([siteConfig, navigation], ([config, nav]) => {
 }, { immediate: true });
 
 const submit = () => run(async () => {
-  const { navigation: keys, ...config } = form;
-  await saveSiteSettings({ ...config, lightTheme: onlyChanged('lightTheme'), darkTheme: onlyChanged('darkTheme') }, mapMenus(keys, linkInput));
+  await saveSiteSettings({ ...form, lightTheme: onlyChanged('lightTheme'), darkTheme: onlyChanged('darkTheme') });
   markSaved();
 });
 
@@ -57,7 +52,7 @@ const leave = () => router.push('/');
 
 <template>
   <div class="page">
-    <p v-if="!userChecked || (currentUser && !form.navigation)" class="loading">載入中…</p>
+    <p v-if="!userChecked || (currentUser && !form.siteTitle)" class="loading">載入中…</p>
     <p v-else-if="!can('MANAGE_SITE_CONFIG')">你沒有修改網站設定的權限。</p>
 
     <EditorForm
@@ -85,11 +80,6 @@ const leave = () => router.push('/');
           <ImageField v-model="form.logoUrl" label="標誌" :fallback="DEFAULT_IMAGES.logoUrl" hint="顯示在頁首，高度約 44 像素；建議用透明背景的圖片。" @error="error = $event" />
           <ImageField v-model="form.faviconUrl" label="網站圖示（favicon）" :fallback="DEFAULT_IMAGES.faviconUrl" hint="顯示在瀏覽器分頁上，建議用正方形的圖片。" @error="error = $event" />
         </div>
-      </fieldset>
-
-      <fieldset class="settings-group">
-        <legend>頁首選單</legend>
-        <NavEditor v-model="form.navigation" :pages="pages ?? []" />
       </fieldset>
 
       <fieldset class="settings-group">
@@ -126,7 +116,7 @@ const leave = () => router.push('/');
           <label class="field">
             <span>電話</span>
             <input v-model="form.phone" type="tel" required maxlength="50" pattern="[0-9\(\)+ \-]*[0-9][0-9\(\)+ \-]*" />
-            <small>只填號碼，例如 (04)7232105。</small>
+            <small>只填號碼，例如 (02)1234-5678。</small>
           </label>
           <label class="field">
             <span>分機（選填）</span>
@@ -179,9 +169,10 @@ const leave = () => router.push('/');
       </fieldset>
     </EditorForm>
 
-    <!-- 在表單外：輸出與匯入不必先儲存設定，也不受「尚未儲存」的提醒影響 -->
-    <div v-if="form.navigation && SITE_DATA_PERMISSIONS.every(can)" class="form form--page site-data">
-      <SiteData />
+    <!-- 在表單外：輸出、匯入與下載靜態網站不必先儲存設定，也不受「尚未儲存」的提醒影響 -->
+    <div v-if="form.siteTitle && can('MANAGE_SITE_CONFIG')" class="form form--page site-data">
+      <SiteData v-if="SITE_DATA_PERMISSIONS.every(can)" />
+      <StaticSite />
     </div>
   </div>
 </template>

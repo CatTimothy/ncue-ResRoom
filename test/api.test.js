@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
-import { mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { crc32, inflateRawSync } from 'node:zlib';
 import { after, before, test } from 'node:test';
 import pg from 'pg';
 import sharp from 'sharp';
@@ -674,27 +675,22 @@ const CONFIG = {
   darkTheme: NO_COLORS,
 };
 
-test('site config starts with the original content and only logged-in users can edit it', async () => {
+test('site config starts with the demo content and only logged-in users can edit it', async () => {
   assert.deepEqual((await gql(CONFIG_QUERY, {}, {})).data.siteConfig, {
-    siteTitle: '國立彰化師範大學資源教室',
+    siteTitle: '示範學校資源教室',
     logoText: '資源教室',
     faviconUrl: null,
     logoUrl: null,
     campusUrl: null,
-    campusAlt: '彰化師範大學校園：草坪後方的校舍與藍天白雲',
-    heroPrefix: '國立彰化師範大學',
+    campusAlt: '示範學校的校園插圖：草坪後方的校舍與藍天白雲',
+    heroPrefix: '示範學校',
     heroTitle: '資源教室',
     heroText: '週一至週五 8:30～17:00 開放',
     footerTitle: '聯絡資源教室',
-    phone: '(04)7232105',
-    extension: '轉 5552、5556、5557',
+    phone: '(02)1234-5678',
+    extension: '轉 1234',
     hours: '週一至週五 8:30～17:00',
-    teachers: [
-      { name: '陳縈媺', email: 'chencc@cc.ncue.edu.tw', extension: '5552' },
-      { name: '何宜家', email: 'evea3@cc.ncue.edu.tw', extension: '5557' },
-      { name: '周佳慧', email: 'teresa172@cc.ncue.edu.tw', extension: '5556' },
-      { name: '何佳霖', email: 'annielinn@cc.ncue.edu.tw', extension: '5556' },
-    ],
+    teachers: [{ name: '王老師', email: 'teacher@example.edu', extension: '1234' }],
     defaultTheme: 'SYSTEM',
     lightTheme: NO_COLORS,
     darkTheme: NO_COLORS,
@@ -1427,6 +1423,38 @@ test('seed content creates pages and documents once and never overwrites', async
   for (const { slug } of pages) await gql('mutation ($s: String!) { deletePage(slug: $s) }', { s: slug });
   for (const { id } of (await gql('{ documents(limit: 100) { id } }')).data.documents) await gql(`mutation { deleteDocument(id: ${id}) }`);
   await app.db.prepare('DELETE FROM photos WHERE album_id IS NULL').run();
+  await app.db.prepare('UPDATE site_config SET favicon_url = NULL, logo_url = NULL, campus_url = NULL').run();
+});
+
+test('seed content applies the school settings only where the demo defaults are still in place', async () => {
+  const site = await start();
+  try {
+    const seedDir = fileURLToPath(new URL('../seed', import.meta.url));
+    const storage = createStorage({ db: site.db, dataDir: site.dataDir });
+    const headers = (await login(USER.username, USER.password, site.base)).headers;
+    const client = siteClient(site, headers);
+    const readConfig = async () => (await client.gql(`{ siteConfig { ${CONFIG_FIELDS} } }`)).data.siteConfig;
+
+    // 已經改過的設定不會被覆蓋
+    await client.gql(SAVE_CONFIG, { input: { ...(await readConfig()), heroText: '自己改的' } });
+    await seedContent({ db: site.db, storage, seedDir });
+
+    const { images, ...school } = JSON.parse(readFileSync(join(seedDir, 'site-config.json'), 'utf8'));
+    const config = await readConfig();
+    assert.deepEqual({ ...config, heroText: school.heroText }, { ...config, ...school });
+    assert.equal(config.heroText, '自己改的');
+    for (const [field, name] of Object.entries(images)) {
+      assert.match(config[field], /^\/files\/display\/[0-9a-f-]{36}\.webp$/, field);
+      assert.equal((await fetch(site.base + config[field])).status, 200);
+      const original = await site.db.prepare('SELECT filename FROM photos WHERE stored_name LIKE $1').get(`${config[field].split('/').pop().replace('.webp', '')}.%`);
+      assert.equal(original.filename, name);
+    }
+
+    await seedContent({ db: site.db, storage, seedDir });
+    assert.deepEqual(await readConfig(), config);
+  } finally {
+    await site.stop();
+  }
 });
 
 test('oversized bodies are rejected', async () => {
@@ -1593,4 +1621,91 @@ test('site data needs every content permission and rejects other files', async (
 
   assert.deepEqual((await gql('{ pages { slug } }')).data.pages, pagesBefore);
   assert.ok(!readdirSync(join(app.dataDir, 'uploads')).some((name) => name.startsWith('.import-')));
+});
+
+/** 讀出 ZIP 裡的所有檔案：檔名 → 內容 */
+function unzip(zip) {
+  const end = zip.lastIndexOf(Buffer.from([0x50, 0x4b, 0x05, 0x06]));
+  const count = zip.readUInt16LE(end + 10);
+  let position = zip.readUInt32LE(end + 16);
+  const files = new Map();
+  for (let i = 0; i < count; i++) {
+    assert.equal(zip.readUInt32LE(position), 0x02014b50);
+    const method = zip.readUInt16LE(position + 10);
+    const crc = zip.readUInt32LE(position + 16);
+    const compressedSize = zip.readUInt32LE(position + 20);
+    const nameLength = zip.readUInt16LE(position + 28);
+    const extraLength = zip.readUInt16LE(position + 30);
+    const commentLength = zip.readUInt16LE(position + 32);
+    const offset = zip.readUInt32LE(position + 42);
+    const name = zip.subarray(position + 46, position + 46 + nameLength).toString('utf8');
+    const start = offset + 30 + zip.readUInt16LE(offset + 26) + zip.readUInt16LE(offset + 28);
+    const stored = zip.subarray(start, start + compressedSize);
+    const data = method === 8 ? inflateRawSync(stored) : stored;
+    assert.equal(crc32(data), crc, name);
+    files.set(name, data);
+    position += 46 + nameLength + extraLength + commentLength;
+  }
+  return files;
+}
+
+test('the static site download contains public content as linked HTML files', async () => {
+  const publicDir = mkdtempSync(join(tmpdir(), 'resroom-public-'));
+  mkdirSync(join(publicDir, 'assets'));
+  writeFileSync(join(publicDir, 'index.html'), '<link rel="stylesheet" crossorigin href="/assets/index-abc.css">');
+  writeFileSync(join(publicDir, 'assets', 'index-abc.css'), 'body{font-family:x;src:url(/assets/font-1.woff2)}');
+  writeFileSync(join(publicDir, 'assets', 'font-1.woff2'), 'font');
+  for (const name of ['logo.webp', 'favicon.png', 'campus.jpg']) writeFileSync(join(publicDir, name), name);
+  const site = await start({ publicDir });
+  try {
+    const headers = (await login(USER.username, USER.password, site.base)).headers;
+    const client = siteClient(site, headers);
+    assert.equal((await fetch(`${site.base}/static-site`)).status, 401);
+
+    await client.gql(SAVE_PAGE, { slug: 'about', title: '簡介', content: '[公告](/announcements) ![地圖](/files/display/00000000-0000-0000-0000-000000000000.webp)', format: 'MARKDOWN' });
+    await client.gql(SAVE_PAGE, { slug: 'extra', title: '其他 & 更多', content: '<p>x</p>', format: 'HTML' });
+    const published = (await client.gql(SAVE_ANNOUNCEMENT, { title: '已發布<公告>', content: '內容' })).data.saveAnnouncement;
+    const scheduled = (await client.gql(
+      'mutation { saveAnnouncement(title: "未來的公告", content: "x", publishedAt: "2999-01-01T00:00:00Z") { id } }',
+    )).data.saveAnnouncement;
+    const album = (await client.gql(SAVE_ALBUM, { name: '110(1)參訪' })).data.saveAlbum;
+    const photo = (await client.upload(UPLOAD_PHOTO, { alt: '合照', albumId: album.id }, PNG, 'a.png')).data.uploadPhoto;
+    const empty = (await client.gql(SAVE_ALBUM, { name: '空相簿' })).data.saveAlbum;
+    const document = (await client.upload(UPLOAD_DOCUMENT, { title: '申請表' }, 'document body', '申請表.pdf')).data.uploadDocument;
+
+    const res = await fetch(`${site.base}/static-site`, { headers });
+    assert.equal(res.status, 200);
+    assert.match(res.headers.get('content-disposition'), /^attachment; filename="static-site-\d{4}-\d{2}-\d{2}\.zip"$/);
+    const zip = Buffer.from(await res.arrayBuffer());
+    assert.equal(zip.length, Number(res.headers.get('content-length')));
+    const files = unzip(zip);
+    const text = (name) => files.get(name)?.toString('utf8');
+
+    assert.ok(files.has(`announcements/${published.id}/index.html`));
+    assert.ok(!files.has(`announcements/${scheduled.id}/index.html`));
+    assert.ok(!text('announcements/index.html').includes('未來的公告'));
+    assert.ok(text('announcements/index.html').includes('已發布&#60;公告&#62;'));
+    assert.ok(files.has(`photos/${album.id}/index.html`));
+    assert.ok(!files.has(`photos/${empty.id}/index.html`));
+    assert.deepEqual(files.get(photo.url.slice(1)).subarray(0, 4).toString('latin1'), 'RIFF'); // 壓縮版是 WebP
+    assert.ok(!files.has(photo.originalUrl.slice(1)));
+    assert.equal(text(document.url.slice(1)), 'document body');
+    assert.match(text('documents/index.html'), new RegExp(`href="../${document.url.slice(1)}" download="申請表.pdf"`));
+
+    // 網址都是相對路徑，直接開啟檔案也能瀏覽
+    const about = text('about/index.html');
+    assert.match(about, /href="..\/announcements\/index.html"/);
+    assert.match(about, /href="..\/assets\/index-abc.css"/);
+    assert.match(about, /src="..\/logo.webp"/);
+    assert.match(about, /src="..\/site.js"/);
+    assert.ok(text('pages/extra/index.html').includes('<title>其他 &#38; 更多｜'));
+    assert.match(text('index.html'), /href="announcements\/index.html"/);
+    assert.equal(text('assets/index-abc.css'), 'body{font-family:x;src:url(./font-1.woff2)}');
+    assert.equal(text('assets/font-1.woff2'), 'font');
+    assert.equal(text('logo.webp'), 'logo.webp');
+    assert.ok(files.has('site.js'));
+  } finally {
+    await site.stop();
+    rmSync(publicDir, { recursive: true, force: true });
+  }
 });

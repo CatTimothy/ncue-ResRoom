@@ -5,9 +5,9 @@ import { parse } from 'node:path';
 import { Readable, pipeline } from 'node:stream';
 import { GraphQLError } from 'graphql';
 import { fail } from '../lib/errors.js';
-import { hasPermission } from '../lib/guards.js';
 import { SITE_DATA_PERMISSIONS } from '../lib/permissions.js';
 import { readTar, TAR_END, tarHeader, tarPadding } from '../lib/tar.js';
+import { authorize } from './authorize.js';
 import { isAllowedOrigin } from './request-guard.js';
 
 /** GET 下載網站資料，POST 上傳同樣格式的檔案取代所有網站資料 */
@@ -23,7 +23,7 @@ const STORED_NAME = /^[0-9a-f-]{36}\.[a-z0-9]+$/; // 和 src/http/files.js 的�
 const FILE_ENTRY = /^files\/([0-9a-f-]{36}\.[a-z0-9]+)$/;
 const FILE_TABLES = ['photos', 'documents'];
 
-function reply(res, status, body, headers = {}) {
+export function reply(res, status, body, headers = {}) {
   const json = typeof body !== 'string';
   res.writeHead(status, {
     'Content-Type': json ? 'application/json; charset=utf-8' : 'text/plain; charset=utf-8',
@@ -34,7 +34,7 @@ function reply(res, status, body, headers = {}) {
 }
 
 /** 台灣時區的日期，例如 2026-11-11 */
-const today = () => new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Taipei' }).format(new Date());
+export const today = () => new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Taipei' }).format(new Date());
 
 const storedNamesOf = (tables) => FILE_TABLES.flatMap((table) => (tables[table] ?? []).map((row) => row.stored_name));
 
@@ -87,17 +87,6 @@ export function createSiteDataHandler({ db, storage, sessions, allowedOrigins })
   const storedNamesInDb = async () => (
     await db.prepare('SELECT stored_name FROM photos UNION ALL SELECT stored_name FROM documents').all()
   ).map((row) => row.storedName);
-
-  /** 檢查權限；不通過時直接回應並回傳 false */
-  async function authorize(req, res) {
-    const context = await sessions.current(req.headers.cookie);
-    const rejected = !context.user ? [401, '請先登入']
-      : !SITE_DATA_PERMISSIONS.every((permission) => hasPermission(context, permission))
-        ? [403, '輸出與匯入網站資料需要所有內容的管理權限（帳號管理除外）']
-        : null;
-    if (rejected) reply(res, ...rejected);
-    return !rejected;
-  }
 
   async function exportSite(res) {
     const { tables } = await db.prepare('SELECT export_site() AS tables').get();
@@ -212,7 +201,10 @@ export function createSiteDataHandler({ db, storage, sessions, allowedOrigins })
     if (req.method === 'POST' && !isAllowedOrigin(req.headers.origin, req.headers.host, allowedOrigins)) {
       return reply(res, 403, 'Forbidden origin');
     }
-    if (!(await authorize(req, res))) return undefined;
+    const allowed = await authorize({
+      sessions, req, res, reply, permissions: SITE_DATA_PERMISSIONS, message: '輸出與匯入網站資料需要所有內容的管理權限（帳號管理除外）',
+    });
+    if (!allowed) return undefined;
     if (req.method === 'GET') return exportSite(res);
 
     if (importing) return reply(res, 409, '已經有人正在匯入網站資料，請稍後再試', { Connection: 'close' });
