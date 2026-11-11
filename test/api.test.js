@@ -727,7 +727,7 @@ test('site config starts with the original content and only logged-in users can 
   assert.deepEqual((await app.db.prepare('SELECT dark_theme FROM site_config').get()).darkTheme, { accent: '#112233' }, 'unset colors are not stored');
 
   // 網站設定用到的圖片不會被當成沒人用的內文圖片清掉
-  await app.db.prepare("UPDATE content_images SET created_at = now() - interval '2 days'").run();
+  await app.db.prepare("UPDATE photos SET created_at = now() - interval '2 days' WHERE album_id IS NULL").run();
   await uploadJson('mutation ($file: File!) { uploadContentImage(file: $file) { url } }', {}, PNG, 'other.png');
   assert.equal((await fetch(`${app.base}${url}`)).status, 200);
 
@@ -967,6 +967,42 @@ test('old photos table is upgraded without losing data', async () => {
       assert.equal(rows[0].album, undefined);
       assert.equal((await db.prepare('SELECT count(*)::int AS n FROM albums').get()).n, 2);
       await db.prepare("INSERT INTO photos (stored_name, alt, album_id) VALUES ('b.png', 'b', $1)").run(rows[0].albumId);
+    } finally {
+      await db.close();
+    }
+  } finally {
+    await dropDatabase(database.name);
+  }
+});
+
+test('old content_images table is merged into photos', async () => {
+  const database = await createDatabase();
+  const client = new pg.Client({ connectionString: database.url });
+  await client.connect();
+  await client.query(`
+    CREATE TABLE content_images (
+      id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+      stored_name TEXT NOT NULL UNIQUE,
+      filename TEXT NOT NULL,
+      size INTEGER NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    INSERT INTO content_images (stored_name, filename, size, created_at) VALUES
+      ('a.png', '活動 照片.png', 5, '2020-06-01T00:00:00Z'), ('b.png', '.png', 5, now());
+  `);
+  await client.end();
+
+  try {
+    await (await openDb(database.url)).close();
+    const db = await openDb(database.url);
+    try {
+      assert.equal((await db.prepare("SELECT to_regclass('content_images') AS t").get()).t, null);
+      const rows = await db.prepare('SELECT stored_name, alt, album_id, filename, created_at FROM photos ORDER BY stored_name').all();
+      assert.deepEqual(rows.map(({ storedName, alt, albumId, filename }) => ({ storedName, alt, albumId, filename })), [
+        { storedName: 'a.png', alt: '活動 照片', albumId: null, filename: '活動 照片.png' },
+        { storedName: 'b.png', alt: 'image', albumId: null, filename: '.png' },
+      ]);
+      assert.equal(new Date(rows[0].createdAt).getUTCFullYear(), 2020);
     } finally {
       await db.close();
     }
@@ -1217,10 +1253,20 @@ test('content images are uploaded for Markdown and removed when no longer refere
   assert.equal((await fetch(app.base + image.url)).status, 200);
   assert.equal((await upload(UPLOAD, {}, PNG, 'a.png', {})).status, 401);
 
+  // 內文圖片存在 photos 但不屬於相簿：相簿的修改與刪除都碰不到
+  const { id } = await app.db.prepare('SELECT id FROM photos WHERE album_id IS NULL ORDER BY id DESC LIMIT 1').get();
+  const album = await newAlbum('內文圖片');
+  const UPDATE = 'mutation ($id: ID!, $albumId: ID!) { updatePhoto(id: $id, alt: "x", albumId: $albumId) { id } }';
+  assert.match((await gql(UPDATE, { id: String(id), albumId: album.id })).errors[0].message, /找不到/);
+  assert.equal((await gql('mutation ($id: ID!) { deletePhoto(id: $id) }', { id: String(id) })).data.deletePhoto, false);
+  assert.deepEqual((await gql('query ($id: ID!) { photos(albumId: $id) { id } }', { id: album.id })).data.photos, []);
+  assert.equal((await fetch(app.base + image.url)).status, 200);
+  await gql('mutation ($id: ID!) { deleteAlbum(id: $id) }', { id: album.id });
+
   const saved = (await gql(SAVE_ANNOUNCEMENT, { title: 't', content: `![圖](${image.url})` })).data.saveAnnouncement;
   assert.ok(saved.html.includes(`<img src="${image.url}"`));
 
-  const age = () => app.db.prepare("UPDATE content_images SET created_at = now() - interval '2 days'").run();
+  const age = () => app.db.prepare("UPDATE photos SET created_at = now() - interval '2 days' WHERE album_id IS NULL").run();
   const sweep = () => uploadJson(UPLOAD, {}, PNG, 'trigger.png');
 
   // 仍被公告引用：不會被清除
@@ -1244,7 +1290,7 @@ test('content images are uploaded for Markdown and removed when no longer refere
   const fresh = (await uploadJson(UPLOAD, {}, PNG, 'b.png')).data.uploadContentImage;
   await sweep();
   assert.equal((await fetch(app.base + fresh.url)).status, 200);
-  await app.db.prepare('DELETE FROM content_images').run();
+  await app.db.prepare('DELETE FROM photos WHERE album_id IS NULL').run();
 });
 
 test('documents can be edited', async () => {
@@ -1307,7 +1353,7 @@ test('seed content creates pages and documents once and never overwrites', async
 
   for (const { slug } of pages) await gql('mutation ($s: String!) { deletePage(slug: $s) }', { s: slug });
   for (const { id } of (await gql('{ documents(limit: 100) { id } }')).data.documents) await gql(`mutation { deleteDocument(id: ${id}) }`);
-  await app.db.prepare('DELETE FROM content_images').run();
+  await app.db.prepare('DELETE FROM photos WHERE album_id IS NULL').run();
 });
 
 test('oversized bodies are rejected', async () => {

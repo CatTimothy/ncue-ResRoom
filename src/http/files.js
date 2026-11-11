@@ -29,8 +29,6 @@ export function createFileHandler({ db, storage }) {
   async function regenerateDisplay(id) {
     const image = await db.prepare(`
       SELECT stored_name FROM photos WHERE stored_name LIKE $1 || '.%'
-      UNION ALL
-      SELECT stored_name FROM content_images WHERE stored_name LIKE $1 || '.%'
     `).get(id);
     if (image) await storage.createDisplay(image.storedName).catch((error) => console.error(error));
   }
@@ -48,8 +46,6 @@ export function createFileHandler({ db, storage }) {
       SELECT COALESCE(filename, stored_name) AS filename FROM photos WHERE stored_name = $1
       UNION ALL
       SELECT filename FROM documents WHERE stored_name = $1
-      UNION ALL
-      SELECT filename FROM content_images WHERE stored_name = $1
     `).get(storedName);
     if (!row) return respond(res, 404, 'Not found');
     return send(res, storage.pathOf(storedName), {

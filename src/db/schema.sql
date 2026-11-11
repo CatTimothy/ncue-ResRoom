@@ -198,11 +198,12 @@ BEGIN
   END IF;
 END $$;
 
+-- album_id 是 NULL 的是公告、頁面內文與網站設定用的圖片（內文圖片），alt 存原始檔名；沒有內容引用時會被清除
 CREATE TABLE IF NOT EXISTS photos (
   id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   stored_name TEXT NOT NULL UNIQUE,
   alt         TEXT NOT NULL,
-  album_id    BIGINT NOT NULL REFERENCES albums (id) ON DELETE CASCADE,
+  album_id    BIGINT REFERENCES albums (id) ON DELETE CASCADE,
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
   filename    TEXT,
   CONSTRAINT photos_alt_check CHECK (alt ~ '\S' AND char_length(alt) <= 500)
@@ -227,20 +228,24 @@ BEGIN
     ALTER TABLE photos DROP COLUMN album;
   END IF;
 END $$;
+ALTER TABLE photos ALTER COLUMN album_id DROP NOT NULL;
+
+-- 升級舊版：內文圖片原本在獨立的 content_images 資料表，搬進 photos（album_id 為 NULL），說明沿用不含副檔名的原始檔名
+DO $$
+BEGIN
+  IF to_regclass('content_images') IS NOT NULL THEN
+    INSERT INTO photos (stored_name, alt, album_id, filename, created_at)
+      SELECT stored_name, COALESCE(NULLIF(left(btrim(regexp_replace(filename, '\.[^.]*$', '')), 500), ''), 'image'), NULL, filename, created_at
+      FROM content_images
+      ON CONFLICT (stored_name) DO NOTHING;
+    DROP TABLE content_images;
+  END IF;
+END $$;
 
 DROP INDEX IF EXISTS photos_album_id_idx;
 CREATE INDEX IF NOT EXISTS photos_album_id_id_idx ON photos (album_id, id DESC);
 CREATE INDEX IF NOT EXISTS announcements_published_at_idx ON announcements (published_at DESC, id DESC);
 CREATE INDEX IF NOT EXISTS albums_event_date_idx ON albums (event_date DESC, id DESC);
-
--- 公告與頁面內文使用的圖片；沒有內容引用時會被清除
-CREATE TABLE IF NOT EXISTS content_images (
-  id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  stored_name TEXT NOT NULL UNIQUE,
-  filename    TEXT NOT NULL,
-  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-ALTER TABLE content_images DROP COLUMN IF EXISTS size;
 
 CREATE TABLE IF NOT EXISTS documents (
   id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,

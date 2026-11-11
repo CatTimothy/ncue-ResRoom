@@ -108,10 +108,11 @@ export function createStorage({ db, dataDir }) {
   /** 清除沒有內容引用（見 schema.sql 的 image_references）的圖片；留 1 天緩衝，避免刪到還在編輯中的內容所用的圖片 */
   async function sweepContentImages() {
     const rows = await db.prepare(`
-      DELETE FROM content_images ci
-      WHERE ci.created_at < now() - interval '1 day'
-        AND NOT EXISTS (SELECT 1 FROM image_references r WHERE strpos(r.text, split_part(ci.stored_name, '.', 1)) > 0)
-      RETURNING ci.stored_name
+      DELETE FROM photos p
+      WHERE p.album_id IS NULL
+        AND p.created_at < now() - interval '1 day'
+        AND NOT EXISTS (SELECT 1 FROM image_references r WHERE strpos(r.text, split_part(p.stored_name, '.', 1)) > 0)
+      RETURNING p.stored_name
     `).all();
     await removeFiles(rows.map((row) => row.storedName));
   }
@@ -129,8 +130,9 @@ export function createStorage({ db, dataDir }) {
     async saveContentImage(file) {
       await sweepContentImages().catch((error) => console.error(error));
       return saveImage(file, async (storedName, filename) => {
-        await db.prepare('INSERT INTO content_images (stored_name, filename) VALUES ($1, $2)').run(storedName, filename);
-        return { url: displayUrlOf({ storedName }), name: parse(filename).name };
+        const name = parse(filename).name;
+        await db.prepare('INSERT INTO photos (stored_name, alt, filename) VALUES ($1, $2, $3)').run(storedName, name, filename);
+        return { url: displayUrlOf({ storedName }), name };
       });
     },
 

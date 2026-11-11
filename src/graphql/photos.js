@@ -40,12 +40,18 @@ export function createPhotosResolvers({ db, storage }) {
       `).get(storedName, alt, albumId, filename)),
 
       async updatePhoto(_, { id, alt, albumId }) {
-        const row = await db.prepare('UPDATE photos SET alt = $1, album_id = $2 WHERE id = $3 RETURNING *')
+        // 內文圖片（album_id 是 NULL）不屬於相簿，不能從這裡修改或刪除
+        const row = await db.prepare('UPDATE photos SET alt = $1, album_id = $2 WHERE id = $3 AND album_id IS NOT NULL RETURNING *')
           .get(alt, albumId, id);
         return row ?? fail('找不到這張照片');
       },
 
-      deletePhoto: (_, { id }) => storage.deleteRow('photos', id),
+      async deletePhoto(_, { id }) {
+        const row = await db.prepare('DELETE FROM photos WHERE id = $1 AND album_id IS NOT NULL RETURNING stored_name').get(id);
+        if (!row) return false;
+        await storage.removeFiles([row.storedName]);
+        return true;
+      },
     }),
 
     Photo: { url: storage.displayUrlOf, originalUrl: storage.urlOf },
