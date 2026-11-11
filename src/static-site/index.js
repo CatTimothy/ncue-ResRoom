@@ -35,8 +35,12 @@ const show = (value) => {
 };
 const html = (strings, ...values) => raw(strings.reduce((out, text, i) => out + text + (i < values.length ? show(values[i]) : ''), ''));
 
-/** 一個網址（例如 /photos/3）所在頁面用的相對路徑 */
-function urlsFor(route) {
+/**
+ * 一個網址（例如 /photos/3）所在頁面用的連結。mode 是 'files'（下載的 ZIP，用相對路徑，直接開啟檔案也能瀏覽）
+ * 或 'site'（伺服器在 <noscript> 裡提供的頁面，用網站原本的網址）
+ */
+function urlsFor(route, mode = 'files') {
+  if (mode === 'site') return { route, mode, to: (path) => path, local: (url) => url };
   const depth = route === '/' ? 0 : route.split('/').length - 1;
   const prefix = '../'.repeat(depth);
   const to = (path) => (path === '/' ? `${prefix}index.html` : `${prefix}${path.replace(/^\/|\/$/g, '')}/index.html`);
@@ -47,7 +51,7 @@ function urlsFor(route) {
     if (path.startsWith('/files/') || /\.[a-z0-9]+$/i.test(path)) return prefix + path.slice(1) + suffix;
     return to(path) + suffix;
   };
-  return { route, to, local };
+  return { route, mode, to, local };
 }
 
 /** API 消毒過的內文：網址改成相對路徑 */
@@ -67,7 +71,7 @@ function header(site, u) {
       ${site.config.logoText && html`<span class="wordmark__unit">${site.config.logoText}</span>`}
     </a>
     <div class="site-header__tools">
-      <button type="button" class="icon-button" aria-label="深色模式" aria-pressed="false" data-theme-toggle>
+      ${u.mode === 'files' && html`<button type="button" class="icon-button" aria-label="深色模式" aria-pressed="false" data-theme-toggle>
         <svg class="icon" data-icon="sun" viewBox="0 0 24 24" aria-hidden="true" hidden>
           <circle cx="12" cy="12" r="4.5" />
           <path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M4.9 19.1l1.8-1.8M17.3 6.7l1.8-1.8" />
@@ -75,14 +79,14 @@ function header(site, u) {
         <svg class="icon" data-icon="moon" viewBox="0 0 24 24" aria-hidden="true">
           <path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5Z" />
         </svg>
-      </button>
+      </button>`}
     </div>
     <div class="site-header__nav">
-      <button type="button" class="menu-toggle" aria-label="選單" aria-controls="site-menus" aria-expanded="false">
+      ${u.mode === 'files' && html`<button type="button" class="menu-toggle" aria-label="選單" aria-controls="site-menus" aria-expanded="false">
         <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" /></svg>
         <span class="menu-toggle__label">選單</span>
-      </button>
-      <div id="site-menus" class="site-header__menus">
+      </button>`}
+      <div id="site-menus" class="site-header__menus${u.mode === 'site' ? ' site-header__menus--static' : ''}">
         ${Object.entries(NAV_LABELS).map(([row, label]) => menus[row].length > 0 && html`
         <nav class="${row}-nav" aria-label="${label}">
           ${menus[row].map((link) => html`<a href="${u.to(link.to)}"${isCurrent(u, link.to) ? raw(' class="is-current" aria-current="page"') : ''}>${link.label}</a>`)}
@@ -146,9 +150,14 @@ function themeScript({ config }) {
     </script>`);
 }
 
-function layout(site, route, title, body, { lightbox = false } = {}) {
+/** 一頁的定義：網址、標題與內容；ZIP 用 layout 包成整份文件，<noscript> 用 noscriptBody */
+const page = (route, title, body, { lightbox = false } = {}) => ({ route, title, body, lightbox });
+
+const fullTitleOf = (site, title) => (title ? `${title}｜${site.config.siteTitle}` : site.config.siteTitle);
+
+function layout(site, { route, title, body, lightbox }) {
   const u = urlsFor(route);
-  const fullTitle = title ? `${title}｜${site.config.siteTitle}` : site.config.siteTitle;
+  const fullTitle = fullTitleOf(site, title);
   return html`<!doctype html>
 <html lang="zh-Hant-TW">
   <head>
@@ -227,9 +236,11 @@ const photoGrid = (photos, u) => html`
   <ul class="photo-grid">
     ${photos.map((photo) => html`
     <li>
-      <button type="button" class="photo-grid__open" aria-label="放大照片：${photo.alt}" data-src="${u.local(photo.url)}" data-alt="${photo.alt}">
+      ${u.mode === 'site'
+    ? html`<a class="photo-grid__open" href="${photo.url}" aria-label="開啟照片：${photo.alt}"><img src="${photo.url}" alt="${photo.alt}" loading="lazy" decoding="async" /></a>`
+    : html`<button type="button" class="photo-grid__open" aria-label="放大照片：${photo.alt}" data-src="${u.local(photo.url)}" data-alt="${photo.alt}">
         <img src="${u.local(photo.url)}" alt="${photo.alt}" loading="lazy" decoding="async" />
-      </button>
+      </button>`}
     </li>`)}
   </ul>`;
 
@@ -237,7 +248,7 @@ const DOTS = Array.from({ length: 9 * 7 }, (_, i) => Math.round(Math.hypot(i % 9
 
 function homePage(site) {
   const { config, images, announcements, albums } = site;
-  return layout(site, '/', '', (u) => html`
+  return page('/', '', (u) => html`
     <section class="hero" aria-labelledby="site-title">
       <div class="hero__text">
         <h1 id="site-title">
@@ -271,7 +282,7 @@ function homePage(site) {
     </div>`);
 }
 
-const announcementsPage = (site) => layout(site, '/announcements', '最新消息', (u) => html`
+const announcementsPage = (site) => page('/announcements', '最新消息', (u) => html`
   <div class="page">
     <h1 class="stop">最新消息</h1>
     <div>
@@ -289,7 +300,7 @@ function announcementPage(site, item) {
     ['聯絡人', item.contactPerson || '—'],
     ['分機', item.extension || '—'],
   ];
-  return layout(site, `/announcements/${item.id}`, item.title, (u) => html`
+  return page(`/announcements/${item.id}`, item.title, (u) => html`
     <div class="page">
       <a class="back-link" href="${u.to('/announcements')}">回到最新消息</a>
       <article class="article">
@@ -305,7 +316,7 @@ function announcementPage(site, item) {
     </div>`);
 }
 
-const albumsPage = (site) => layout(site, '/photos', '活動剪影', (u) => html`
+const albumsPage = (site) => page('/photos', '活動剪影', (u) => html`
   <div class="page">
     <h1 class="stop">活動剪影</h1>
     <div>
@@ -321,14 +332,14 @@ const albumsPage = (site) => layout(site, '/photos', '活動剪影', (u) => html
     </div>
   </div>`, { lightbox: true });
 
-const albumPage = (site, album) => layout(site, `/photos/${album.id}`, parseAlbum(album.name).name, (u) => html`
+const albumPage = (site, album) => page(`/photos/${album.id}`, parseAlbum(album.name).name, (u) => html`
   <div class="page">
     <a class="back-link" href="${u.to('/photos')}">回到所有相簿</a>
     ${albumHeader(album, u)}
     <div>${photoGrid(album.photos, u)}</div>
   </div>`, { lightbox: true });
 
-const documentsPage = (site) => layout(site, '/documents', '文件下載', (u) => html`
+const documentsPage = (site) => page('/documents', '文件下載', (u) => html`
   <div class="page">
     <h1 class="stop">文件下載</h1>
     <div>
@@ -349,10 +360,10 @@ const documentsPage = (site) => layout(site, '/documents', '文件下載', (u) =
     </div>
   </div>`);
 
-const contentPage = (site, page) => layout(site, pagePath(page), page.title, (u) => html`
+const contentPage = (site, item) => page(pagePath(item), item.title, (u) => html`
   <div class="page">
-    <div class="album-head"><h1 class="stop">${page.title}</h1></div>
-    ${articleBody(renderPage(page), u, ' article')}
+    <div class="album-head"><h1 class="stop">${item.title}</h1></div>
+    ${articleBody(renderPage(item), u, ' article')}
   </div>`);
 
 // ---- 讀取資料與組合檔案 ----
@@ -372,8 +383,44 @@ async function loadSite(db, storage) {
   const documents = (await db.prepare('SELECT * FROM documents ORDER BY id DESC').all())
     .map((row) => ({ ...row, url: storage.urlOf(row) }));
   const pages = await db.prepare('SELECT * FROM pages ORDER BY slug').all();
+  // 下一則預約發布的公告：到時候公開內容會改變
+  const { next } = await db.prepare('SELECT min(published_at) AS next FROM announcements WHERE published_at > now()').get();
   return {
-    config, images, announcements, albums, documents, pages, navigation: await readNavigation(db), year: new Date().getFullYear(),
+    config, images, announcements, albums, documents, pages, navigation: await readNavigation(db), year: new Date().getFullYear(), nextChange: next,
+  };
+}
+
+/** 網站所有的公開頁面 */
+const allPages = (site) => [
+  homePage(site),
+  announcementsPage(site),
+  ...site.announcements.map((item) => announcementPage(site, item)),
+  albumsPage(site),
+  ...site.albums.map((album) => albumPage(site, album)),
+  documentsPage(site),
+  ...site.pages.map((item) => contentPage(site, item)),
+];
+
+/**
+ * 給 <noscript> 用的頁面（src/http/noscript.js）：網址 → { title, body }，body 是頁首、內容與頁尾。
+ * 另外回傳預設主題（沒有 JavaScript 時套用在 <html> 上）與下一次公開內容會改變的時間
+ */
+export async function renderNoscriptPages({ db, storage }) {
+  const site = await loadSite(db, storage);
+  const pages = new Map(allPages(site).map(({ route, title, body }) => {
+    const u = urlsFor(route, 'site');
+    const content = html`${header(site, u)}
+    <main id="main" tabindex="-1">
+      ${body(u)}
+    </main>
+    ${footer(site, site.year)}`;
+    return [route, { title: fullTitleOf(site, title), body: content.value }];
+  }));
+  const mode = site.config.defaultTheme === 'DARK' ? 'dark' : 'light';
+  return {
+    pages,
+    theme: { mode, colors: site.config[`${mode}Theme`] },
+    nextChange: site.nextChange ? new Date(site.nextChange) : null,
   };
 }
 
@@ -419,15 +466,10 @@ export async function buildStaticSite({ db, storage, publicDir }) {
   const { styles, entries: styleEntries } = await loadStyles(publicDir);
   const site = { ...(await loadSite(db, storage)), styles };
 
-  const pages = [
-    ['index.html', homePage(site)],
-    ['announcements/index.html', announcementsPage(site)],
-    ...site.announcements.map((item) => [`announcements/${item.id}/index.html`, announcementPage(site, item)]),
-    ['photos/index.html', albumsPage(site)],
-    ...site.albums.map((album) => [`photos/${album.id}/index.html`, albumPage(site, album)]),
-    ['documents/index.html', documentsPage(site)],
-    ...site.pages.map((page) => [`${pagePath(page).slice(1)}/index.html`, contentPage(site, page)]),
-  ];
+  const pages = allPages(site).map((definition) => [
+    definition.route === '/' ? 'index.html' : `${definition.route.slice(1)}/index.html`,
+    layout(site, definition),
+  ]);
 
   // 沒有上傳的圖片用網站內建的示範圖片
   const builtIn = Object.values(site.images).filter((url) => !url.startsWith('/files/'))

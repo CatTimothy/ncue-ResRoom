@@ -2,6 +2,7 @@ import { createServer } from 'node:http';
 import { openDb } from './db/index.js';
 import { createGraphQLHandler } from './graphql/index.js';
 import { createFileHandler, fileFromPath } from './http/files.js';
+import { createNoscriptPages } from './http/noscript.js';
 import { createRequestGuard } from './http/request-guard.js';
 import { createSiteDataHandler, SITE_DATA_PATH } from './http/site-data.js';
 import { createStaticHandler } from './http/static.js';
@@ -14,12 +15,17 @@ export async function createApp({ databaseUrl, dataDir, publicDir = null, produc
   const storage = createStorage({ db, dataDir });
   const sessions = createSessions({ db, production });
 
-  const graphql = createGraphQLHandler({ db, storage, sessions, production, allowedOrigins });
+  // 沒有 JavaScript 時看到的頁面：啟動時先產生，內容改變後自動重新產生
+  const noscript = createNoscriptPages({ db, storage });
+  const onContentChange = () => noscript.invalidate();
+  if (publicDir) noscript.refresh();
+
+  const graphql = createGraphQLHandler({ db, storage, sessions, production, allowedOrigins, onContentChange });
   const serveFile = createFileHandler({ db, storage });
   const checkRequest = createRequestGuard({ sessions, allowedOrigins });
-  const siteData = createSiteDataHandler({ db, storage, sessions, allowedOrigins });
+  const siteData = createSiteDataHandler({ db, storage, sessions, allowedOrigins, onContentChange });
   const staticSite = createStaticSiteHandler({ db, storage, sessions, publicDir });
-  const serveStatic = publicDir && createStaticHandler(publicDir);
+  const serveStatic = publicDir && createStaticHandler(publicDir, noscript);
 
   async function handle(req, res) {
     const { pathname } = new URL(req.url, 'http://localhost');
@@ -44,5 +50,7 @@ export async function createApp({ databaseUrl, dataDir, publicDir = null, produc
   // 照片不限大小，預設的 5 分鐘不夠上傳大檔
   server.requestTimeout = 60 * 60 * 1000;
 
-  return { server, db };
+  server.on('close', () => noscript.stop());
+
+  return { server, db, noscript };
 }

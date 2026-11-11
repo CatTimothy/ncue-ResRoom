@@ -406,6 +406,16 @@ h2 {
   margin-top: 2.5rem;
 }
 
+/* 沒有 JavaScript 時（伺服器放在 <noscript> 的頁面，見 src/http/noscript.js）：沒有選單按鈕，窄螢幕時選單直接排在頁首底下 */
+@media (max-width: 64rem) {
+  .site-header__menus.site-header__menus--static {
+    position: static;
+    display: grid;
+    grid-column: 1 / -1;
+    box-shadow: none;
+  }
+}
+
 /* 頁面最下方的建立與編輯時間 */
 .page-dates {
   display: block;

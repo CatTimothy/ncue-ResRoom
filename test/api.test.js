@@ -1132,7 +1132,8 @@ test('the built website is served, with client-side routes falling back to index
       assert.equal(res.status, 200, path);
       assert.equal(res.headers.get('content-type'), 'text/html; charset=utf-8', path);
       assert.equal(res.headers.get('cache-control'), 'no-cache', path);
-      assert.equal(await res.text(), '<title>網站</title>', path);
+      // 公開頁面換上這一頁的標題（沒有 <div id="app"> 時不放 <noscript>，見下一個測試）
+      assert.match(await res.text(), /^<title>[^<]+<\/title>$/, path);
     }
 
     const asset = await fetch(`${site.base}/assets/app-abc.js`);
@@ -1794,4 +1795,65 @@ test('pages go under /pages or at the top level, join the main menu when created
   assert.equal(taken.errors[0].message, '這個網址已經有頁面了，請換一個');
 
   for (const slug of ['url-test-2', 'url-test-3']) await gql('mutation ($s: String!) { deletePage(slug: $s) }', { s: slug });
+});
+
+/** 等到 check() 成立，最多等 timeout 毫秒 */
+async function until(check, timeout = 8000) {
+  const end = Date.now() + timeout;
+  for (;;) {
+    if (await check()) return;
+    if (Date.now() > end) throw new Error('等待逾時');
+    await new Promise((resolve) => { setTimeout(resolve, 200); });
+  }
+}
+
+test('pages work without JavaScript: the server puts pre-rendered content in <noscript> and refreshes it after changes', async () => {
+  const publicDir = mkdtempSync(join(tmpdir(), 'resroom-public-'));
+  writeFileSync(join(publicDir, 'index.html'), '<html lang="zh-Hant-TW"><head><title>網站</title></head><body><div id="app"></div></body></html>');
+  const site = await start({ publicDir });
+  try {
+    const headers = (await login(USER.username, USER.password, site.base)).headers;
+    const client = siteClient(site, headers);
+    const page = async (path) => (await fetch(site.base + path)).text();
+    const noscriptOf = (text) => /<noscript>([\s\S]*?)<\/noscript><div id="app">/.exec(text)?.[1];
+
+    // 啟動時就產生好
+    const home = await page('/');
+    assert.match(home, /<title>示範學校資源教室<\/title>/);
+    assert.ok(noscriptOf(home).includes('class="hero"'));
+    assert.ok(!noscriptOf(home).includes('menu-toggle'), 'no buttons that need JavaScript');
+    assert.ok(noscriptOf(home).includes('site-header__menus site-header__menus--static'));
+
+    // 修改內容後自動重新產生
+    await client.gql(SAVE_PAGE, { slug: 'no-js', title: '不用 JS 的頁面', content: '一段 **內容** $& $1', format: 'MARKDOWN', root: true });
+    const album = (await client.gql(SAVE_ALBUM, { name: '活動' })).data.saveAlbum;
+    const photo = (await client.upload(UPLOAD_PHOTO, { alt: '合照', albumId: album.id }, PNG, 'a.png')).data.uploadPhoto;
+    await until(async () => (await page('/no-js')).includes('<strong>內容</strong>'));
+    const noJs = await page('/no-js');
+    assert.match(noJs, /<title>不用 JS 的頁面｜示範學校資源教室<\/title>/);
+    assert.ok(noscriptOf(noJs).includes('$&amp; $1') || noscriptOf(noJs).includes('$& $1'), 'replacement patterns stay as text');
+    assert.match(noscriptOf(noJs), /<a href="\/no-js" class="is-current" aria-current="page">不用 JS 的頁面<\/a>/, 'the new page is in the menu');
+    await until(async () => (await page(`/photos/${album.id}`)).includes(photo.url));
+    assert.match(await page(`/photos/${album.id}`), new RegExp(`<a class="photo-grid__open" href="${photo.url}"`));
+
+    // 不是公開頁面的網址：說明需要 JavaScript，標題不變
+    const settings = await page('/settings');
+    assert.match(settings, /<title>網站<\/title>/);
+    assert.ok(noscriptOf(settings).includes('需要開啟 JavaScript'));
+
+    // 網站設定的主題顏色
+    const config = (await client.gql(`{ siteConfig { ${CONFIG_FIELDS} } }`)).data.siteConfig;
+    await client.gql(SAVE_CONFIG, { input: { ...config, lightTheme: { ...NO_COLORS, primary: '#123456' } } });
+    await until(async () => (await page('/')).includes('<noscript><style>:root { --primary: #123456; }</style></noscript></head>'));
+
+    // 預約發布的公告到了時間會自動出現
+    const publishAt = new Date(Date.now() + 1500).toISOString();
+    await client.gql('mutation ($t: String!) { saveAnnouncement(title: "預約的公告", content: "x", publishedAt: $t) { id } }', { t: publishAt });
+    await new Promise((resolve) => { setTimeout(resolve, 1300); });
+    assert.ok(!(await page('/announcements')).includes('預約的公告'), 'not public yet');
+    await until(async () => (await page('/announcements')).includes('預約的公告'));
+  } finally {
+    await site.stop();
+    rmSync(publicDir, { recursive: true, force: true });
+  }
 });

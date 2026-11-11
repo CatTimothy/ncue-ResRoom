@@ -36,7 +36,7 @@ function importErrorMessage(error) {
   return [500, '匯入時發生錯誤，網站資料沒有改變'];
 }
 
-export function createSiteDataHandler({ db, storage, sessions, allowedOrigins }) {
+export function createSiteDataHandler({ db, storage, sessions, allowedOrigins, onContentChange = () => {} }) {
   let importing = false;
 
   async function exportSite(res) {
@@ -86,6 +86,7 @@ export function createSiteDataHandler({ db, storage, sessions, allowedOrigins })
     importing = true;
     try {
       reply(res, 200, await importUpload(req));
+      onContentChange();
     } catch (error) {
       reply(res, ...importErrorMessage(error), { Connection: 'close' });
     } finally {
