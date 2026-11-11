@@ -46,6 +46,9 @@ test('拆開相簿名稱中的學年與學期', () => {
   assert.deepEqual(parseAlbum('111(1) 職場攻略活動'), { term: '111 學年度第 1 學期', name: '職場攻略活動' });
   assert.deepEqual(parseAlbum('109（2）特教宣導週'), { term: '109 學年度第 2 學期', name: '特教宣導週' });
   assert.deepEqual(parseAlbum('校園風景'), { term: null, name: '校園風景' });
+  // 只有學期、沒有活動名稱，或不是學年學期的數字時，整個當作名稱
+  assert.deepEqual(parseAlbum('110(1)'), { term: null, name: '110(1)' });
+  assert.deepEqual(parseAlbum('110(3)活動'), { term: null, name: '110(3)活動' });
 });
 
 test('文件的標題與分類由檔名決定', () => {
@@ -55,12 +58,19 @@ test('文件的標題與分類由檔名決定', () => {
   // 只有學期、沒有其他文字時整個當作標題
   assert.deepEqual(parseDocumentName('115(1).pdf'), { title: '115(1)', category: null });
   assert.equal(parseDocumentName(`${'字'.repeat(250)}.pdf`).title.length, 200);
+  assert.deepEqual(parseDocumentName(' 申請表 .pdf'), { title: '申請表', category: null });
+  // 學年是 2 到 3 位數、學期只有 1 和 2；其他的數字是檔名的一部分
+  for (const name of ['115(3)申請表', '5(1)申請表', '2026(1)申請表']) {
+    assert.deepEqual(parseDocumentName(`${name}.pdf`), { title: name, category: null }, name);
+  }
 });
 
 test('手動輸入的學期分類統一成「115學年度第一學期」', () => {
   assert.equal(normalizeCategory(' 115(1) '), '115學年度第一學期');
   assert.equal(normalizeCategory('115（2）'), '115學年度第二學期');
   assert.equal(normalizeCategory('115-1'), '115學年度第一學期');
+  assert.equal(normalizeCategory('115-3'), '115-3');
+  assert.equal(normalizeCategory('2026-1'), '2026-1');
   assert.equal(normalizeCategory('115學年度第一學期'), '115學年度第一學期');
   assert.equal(normalizeCategory('115(1)申請表'), '115(1)申請表');
   assert.equal(normalizeCategory('115學年度'), '115學年度');

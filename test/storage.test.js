@@ -14,6 +14,13 @@ test('上傳資料夾無法寫入時，啟動就失敗並說明原因', (t) => {
   assert.throws(() => createStorage({ db: null, dataDir }), /無法寫入上傳資料夾.*DATA_DIR/);
 });
 
+test('display 資料夾無法建立時也會失敗', (t) => {
+  const dataDir = mkdtempSync(join(tmpdir(), 'resroom-storage-'));
+  t.after(() => rmSync(dataDir, { recursive: true, force: true }));
+  writeFileSync(join(dataDir, 'display'), '');
+  assert.throws(() => createStorage({ db: null, dataDir }), /display/);
+});
+
 test('資料夾可以寫入時正常建立，且不留下測試檔', (t) => {
   const dataDir = mkdtempSync(join(tmpdir(), 'resroom-storage-'));
   t.after(() => rmSync(dataDir, { recursive: true, force: true }));
