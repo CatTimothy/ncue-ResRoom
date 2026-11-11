@@ -106,6 +106,16 @@ title: 資源教室簡介
 - 所有頁面預先產生並放在記憶體裡（`src/http/noscript.js`），開頁時不用查資料庫。重新產生的時機：啟動時；會改變內容的 GraphQL mutation 與匯入網站資料之後（等 1 秒沒有新的修改才重建）；預約發布的公告到了發布時間；以及每小時一次（涵蓋直接修改資料庫等情況）。登入、瀏覽人次等不影響內容的 mutation 不會觸發，所以公告的瀏覽人次可能不是最新的。
 - 新增不會改變公開內容的 mutation 時，加到 `src/graphql/index.js` 的 `NON_CONTENT_MUTATIONS`。
 
+### 搜尋引擎與 AI
+
+由 `src/http/seo.js` 產生，資料來自沒有 JavaScript 時的頁面（`src/http/noscript.js`），所以內容改變後會自動更新：
+
+- 每個公開頁面的 `<head>`：這一頁的描述（取內文開頭）、`canonical` 網址、Open Graph 與 Twitter 分享資訊，以及 JSON-LD 結構化資料（首頁是 `WebSite` 與 `Organization`，公告是 `NewsArticle`，相簿是 `ImageGallery`，其他是 `WebPage`，並附上 `BreadcrumbList`）。不是公開頁面的網址（例如 `/settings`）加上 `noindex`。
+- `/sitemap.xml`：所有公開頁面與最後修改時間。`/robots.txt`：允許所有爬蟲（包含 AI），但不收錄管理畫面與 API，並指向 sitemap。
+- `/llms.txt`：給 AI 工具的網站摘要（聯絡資訊、每頁一行連結與描述、文件清單）；`/llms-full.txt`：所有頁面與公告的全文。格式見 [llmstxt.org](https://llmstxt.org/)。
+- 網址的開頭用 `SITE_URL`（例如 `https://resroom.example.edu.tw`）；沒有設定時依請求的 `Host` 與 `X-Forwarded-Proto`。上線時建議設定，避免反向代理的設定影響 canonical 網址。
+- 不想讓 AI 爬蟲讀取時，在 `robotsTxt`（`src/http/seo.js`）加上 `User-agent: GPTBot` 等規則。
+
 ### 主題
 
 網站有淺色和深色兩種主題。訪客可按頁首右上角的月亮／太陽圖示切換，選擇記在 `localStorage`；沒有選擇時用網站設定的預設主題（可設成依訪客裝置的設定）。網站設定可以修改兩種主題各自的背景、卡片與輸入框、文字、連結與重點、頁首與標記五種顏色，只會保存和內建顏色不同的部分。內建顏色寫在 `web/src/style.css` 開頭，其他顏色（次要文字、線條等）由這五種算出來。

@@ -153,9 +153,38 @@ function themeScript({ config }) {
 /** 一頁的定義：網址、標題與內容；ZIP 用 layout 包成整份文件，<noscript> 用 noscriptBody */
 const page = (route, title, body, { lightbox = false } = {}) => ({ route, title, body, lightbox });
 
+/** HTML 轉成純文字（描述、給 AI 的全文用） */
+export function textOf(markup) {
+  return markup
+    .replace(/<(script|style)[\s\S]*?<\/\1>/gi, ' ')
+    // 圖片換成它的說明，只有圖片的頁面（例如位置圖）也有描述
+    .replace(/<img[^>]*\balt="([^"]*)"[^>]*>/gi, '\n$1\n')
+    // 區塊元素換行；行內元素（strong、a 等）直接拿掉，中文的字才不會被空白隔開
+    .replace(/<br\s*\/?>|<\/(p|h[1-6]|li|div|tr|td|th|dt|dd|blockquote|pre|figcaption)>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#(\d+);/g, (_, code) => String.fromCodePoint(Number(code)))
+    .replace(/&amp;/g, '&')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/ *\n[\s]*/g, '\n')
+    .trim();
+}
+
+/** 搜尋結果與分享時顯示的描述：一行、最多 max 字 */
+const excerpt = (text, max = 120) => {
+  const flat = text.replace(/\s+/g, ' ').trim();
+  return flat.length > max ? `${flat.slice(0, max - 1)}…` : flat;
+};
+
+const firstImage = (markup) => /<img[^>]+src="([^"]+)"/.exec(markup)?.[1] ?? null;
+const latest = (dates) => dates.filter(Boolean).sort().at(-1) ?? null;
+
 const fullTitleOf = (site, title) => (title ? `${title}｜${site.config.siteTitle}` : site.config.siteTitle);
 
-function layout(site, { route, title, body, lightbox }) {
+function layout(site, { route, title, body, lightbox, meta }) {
   const u = urlsFor(route);
   const fullTitle = fullTitleOf(site, title);
   return html`<!doctype html>
@@ -163,7 +192,7 @@ function layout(site, { route, title, body, lightbox }) {
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="description" content="${site.config.siteTitle}的最新消息與活動剪影。" />
+    <meta name="description" content="${meta?.description ?? siteDescription(site)}" />
     <link rel="icon" href="${u.local(site.images.faviconUrl)}" />
     ${site.styles.map((path) => html`<link rel="stylesheet" href="${u.local(`/${path}`)}" />`)}
     <title>${fullTitle}</title>
@@ -291,7 +320,7 @@ const announcementsPage = (site) => page('/announcements', '最新消息', (u) =
     </div>
   </div>`);
 
-function announcementPage(site, item) {
+function announcementPage(item) {
   const info = [
     ['公告單位', item.unit || '—'],
     ['瀏覽人次', item.views],
@@ -332,7 +361,7 @@ const albumsPage = (site) => page('/photos', '活動剪影', (u) => html`
     </div>
   </div>`, { lightbox: true });
 
-const albumPage = (site, album) => page(`/photos/${album.id}`, parseAlbum(album.name).name, (u) => html`
+const albumPage = (album) => page(`/photos/${album.id}`, parseAlbum(album.name).name, (u) => html`
   <div class="page">
     <a class="back-link" href="${u.to('/photos')}">回到所有相簿</a>
     ${albumHeader(album, u)}
@@ -360,7 +389,7 @@ const documentsPage = (site) => page('/documents', '文件下載', (u) => html`
     </div>
   </div>`);
 
-const contentPage = (site, item) => page(pagePath(item), item.title, (u) => html`
+const contentPage = (item) => page(pagePath(item), item.title, (u) => html`
   <div class="page">
     <div class="album-head"><h1 class="stop">${item.title}</h1></div>
     ${articleBody(renderPage(item), u, ' article')}
@@ -390,15 +419,95 @@ async function loadSite(db, storage) {
   };
 }
 
-/** 網站所有的公開頁面 */
+const siteDescription = ({ config }) => excerpt(
+  `${config.siteTitle}的最新消息、活動剪影與文件下載。${config.heroText ? `${config.heroText}。` : ''}聯絡電話 ${config.phone}${config.extension ? ` ${config.extension}` : ''}。`,
+);
+
+const HOME_CRUMB = { name: '首頁', route: '/' };
+
+/**
+ * 每頁的資料：description、image、type（website、article、gallery、page）、published、modified、
+ * breadcrumb（麵包屑）、text（給 AI 的全文），見 src/http/seo.js
+ */
+function homeMeta(site) {
+  return {
+    name: site.config.siteTitle,
+    description: siteDescription(site),
+    image: site.images.campusUrl,
+    type: 'website',
+    modified: latest([...site.announcements.map((a) => a.modifiedAt), ...site.pages.map((p) => p.updatedAt)]),
+    breadcrumb: [],
+    text: '',
+  };
+}
+
+function announcementMeta(item) {
+  const markup = renderAnnouncement(item);
+  const info = [item.unit && `公告單位：${item.unit}`, item.contactPerson && `聯絡人：${item.contactPerson}`, item.extension && `分機：${item.extension}`]
+    .filter(Boolean).join('，');
+  return {
+    name: item.title,
+    description: excerpt(textOf(markup)) || item.title,
+    image: firstImage(markup),
+    type: 'article',
+    published: item.publishedAt,
+    modified: item.modifiedAt,
+    breadcrumb: [HOME_CRUMB, { name: '最新消息', route: '/announcements' }],
+    text: [info, textOf(markup)].filter(Boolean).join('\n'),
+  };
+}
+
+function albumMeta(album) {
+  const title = parseAlbum(album.name);
+  return {
+    name: title.name,
+    description: `${title.term ? `${title.term} ` : ''}${title.name}，活動日期${rocDateText(album.eventDate)}，共 ${album.photos.length} 張照片。`,
+    image: album.photos[0]?.url ?? null,
+    images: album.photos.slice(0, 20).map((photo) => ({ url: photo.url, alt: photo.alt })),
+    type: 'gallery',
+    published: album.eventDate,
+    modified: album.modifiedAt,
+    breadcrumb: [HOME_CRUMB, { name: '活動剪影', route: '/photos' }],
+    text: album.photos.map((photo) => photo.alt).join('、'),
+  };
+}
+
+function contentMeta(item) {
+  const markup = renderPage(item);
+  return {
+    name: item.title,
+    description: excerpt(textOf(markup)) || item.title,
+    image: firstImage(markup),
+    type: 'page',
+    published: item.createdAt,
+    modified: item.updatedAt,
+    breadcrumb: [HOME_CRUMB],
+    text: textOf(markup),
+  };
+}
+
+const listMeta = (name, description, modified, image = null) => ({
+  name, description, image, type: 'page', modified, breadcrumb: [HOME_CRUMB], text: '',
+});
+
+/** 網站所有的公開頁面，各自帶有 meta（見上） */
 const allPages = (site) => [
-  homePage(site),
-  announcementsPage(site),
-  ...site.announcements.map((item) => announcementPage(site, item)),
-  albumsPage(site),
-  ...site.albums.map((album) => albumPage(site, album)),
-  documentsPage(site),
-  ...site.pages.map((item) => contentPage(site, item)),
+  { ...homePage(site), meta: homeMeta(site) },
+  {
+    ...announcementsPage(site),
+    meta: listMeta('最新消息', `${site.config.siteTitle}的最新消息，共 ${site.announcements.length} 則公告。`, latest(site.announcements.map((a) => a.modifiedAt))),
+  },
+  ...site.announcements.map((item) => ({ ...announcementPage(item), meta: announcementMeta(item) })),
+  {
+    ...albumsPage(site),
+    meta: listMeta('活動剪影', `${site.config.siteTitle}的活動剪影，共 ${site.albums.length} 本相簿。`, latest(site.albums.map((a) => a.modifiedAt)), site.albums[0]?.photos[0]?.url),
+  },
+  ...site.albums.map((album) => ({ ...albumPage(album), meta: albumMeta(album) })),
+  {
+    ...documentsPage(site),
+    meta: listMeta('文件下載', `${site.config.siteTitle}的文件下載，共 ${site.documents.length} 份文件，包含申請表與紀錄表等表單。`, latest(site.documents.map((d) => d.createdAt))),
+  },
+  ...site.pages.map((item) => ({ ...contentPage(item), meta: contentMeta(item) })),
 ];
 
 /**
@@ -407,18 +516,31 @@ const allPages = (site) => [
  */
 export async function renderNoscriptPages({ db, storage }) {
   const site = await loadSite(db, storage);
-  const pages = new Map(allPages(site).map(({ route, title, body }) => {
+  const pages = new Map(allPages(site).map(({ route, title, body, meta }) => {
     const u = urlsFor(route, 'site');
     const content = html`${header(site, u)}
     <main id="main" tabindex="-1">
       ${body(u)}
     </main>
     ${footer(site, site.year)}`;
-    return [route, { title: fullTitleOf(site, title), body: content.value }];
+    return [route, { ...meta, route, title: fullTitleOf(site, title), body: content.value }];
   }));
   const mode = site.config.defaultTheme === 'DARK' ? 'dark' : 'light';
+  const { config } = site;
   return {
     pages,
+    // 搜尋引擎、AI 用的網站資訊（src/http/seo.js）
+    site: {
+      title: config.siteTitle,
+      description: siteDescription(site),
+      logo: site.images.logoUrl,
+      phone: config.phone,
+      extension: config.extension,
+      hours: config.hours,
+      contactTitle: config.footerTitle,
+      teachers: config.teachers,
+      documents: site.documents.map((doc) => ({ title: doc.title, category: doc.category, url: doc.url, filename: doc.filename })),
+    },
     theme: { mode, colors: site.config[`${mode}Theme`] },
     nextChange: site.nextChange ? new Date(site.nextChange) : null,
   };

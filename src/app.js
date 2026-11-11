@@ -3,6 +3,7 @@ import { openDb } from './db/index.js';
 import { createGraphQLHandler } from './graphql/index.js';
 import { createFileHandler, fileFromPath } from './http/files.js';
 import { createNoscriptPages } from './http/noscript.js';
+import { createSeoHandler } from './http/seo.js';
 import { createRequestGuard } from './http/request-guard.js';
 import { createSiteDataHandler, SITE_DATA_PATH } from './http/site-data.js';
 import { createStaticHandler } from './http/static.js';
@@ -10,7 +11,7 @@ import { createStaticSiteHandler, STATIC_SITE_PATH } from './http/static-site.js
 import { createSessions } from './lib/sessions.js';
 import { createStorage } from './lib/storage.js';
 
-export async function createApp({ databaseUrl, dataDir, publicDir = null, production = false, allowedOrigins = [] }) {
+export async function createApp({ databaseUrl, dataDir, publicDir = null, production = false, allowedOrigins = [], siteUrl = null }) {
   const db = await openDb(databaseUrl);
   const storage = createStorage({ db, dataDir });
   const sessions = createSessions({ db, production });
@@ -25,7 +26,8 @@ export async function createApp({ databaseUrl, dataDir, publicDir = null, produc
   const checkRequest = createRequestGuard({ sessions, allowedOrigins });
   const siteData = createSiteDataHandler({ db, storage, sessions, allowedOrigins, onContentChange });
   const staticSite = createStaticSiteHandler({ db, storage, sessions, publicDir });
-  const serveStatic = publicDir && createStaticHandler(publicDir, noscript);
+  const serveStatic = publicDir && createStaticHandler(publicDir, { noscript, siteUrl });
+  const serveSeo = createSeoHandler({ noscript, siteUrl });
 
   async function handle(req, res) {
     const { pathname } = new URL(req.url, 'http://localhost');
@@ -35,7 +37,8 @@ export async function createApp({ databaseUrl, dataDir, publicDir = null, produc
     if (req.method === 'GET' || req.method === 'HEAD') {
       const file = fileFromPath(pathname);
       if (file) return serveFile(res, file);
-      if (serveStatic && await serveStatic(res, pathname)) return undefined;
+      if (await serveSeo(req, res, pathname)) return undefined;
+      if (serveStatic && await serveStatic(req, res, pathname)) return undefined;
     }
     if (await checkRequest(req, res)) return graphql(req, res);
   }

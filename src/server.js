@@ -7,6 +7,7 @@ const { server } = await createApp({
   dataDir: process.env.DATA_DIR || './data',
   publicDir: fileURLToPath(new URL('../public', import.meta.url)),
   production: process.env.NODE_ENV === 'production',
+  siteUrl: process.env.SITE_URL || null,
   allowedOrigins: (process.env.CORS_ORIGINS || '').split(',').map((origin) => origin.trim()).filter(Boolean),
 }).catch((error) => {
   console.error(`無法啟動：${error.message}`);

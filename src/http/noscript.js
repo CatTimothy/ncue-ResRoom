@@ -1,4 +1,4 @@
-// 沒有 JavaScript 時看到的頁面：伺服器預先用靜態網站的樣板（src/static-site）產生每個公開網址的 HTML，
+// 沒有 JavaScript 時看到的頁面（也用來產生 SEO 資訊，見 src/http/seo.js）：伺服器預先用靜態網站的樣板（src/static-site）產生每個公開網址的 HTML，
 // 提供 index.html 時放進 <noscript>（見 src/http/static.js）。有 JavaScript 的瀏覽器會忽略 <noscript>，畫面不受影響。
 //
 // 什麼時候重新產生：
@@ -61,11 +61,17 @@ export function createNoscriptPages({ db, storage }) {
       debounceTimer.unref();
     },
 
-    /** 這個網址的頁面 { title, body }（不是公開頁面時是 null）與預設主題；還沒產生過時等它產生 */
+    /** 這個網址的頁面（不是公開頁面時是 null）、網站資訊與預設主題；還沒產生過時等它產生 */
     async get(pathname) {
       if (!current) await refresh();
       if (!current) return null;
-      return { page: current.pages.get(pathname) ?? null, theme: current.theme };
+      return { page: current.pages.get(pathname) ?? null, site: current.site, theme: current.theme };
+    },
+
+    /** 整份結果（sitemap、llms.txt 用，見 src/http/seo.js） */
+    async snapshot() {
+      if (!current) await refresh();
+      return current;
     },
 
     stop() {

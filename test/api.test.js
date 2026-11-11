@@ -1857,3 +1857,73 @@ test('pages work without JavaScript: the server puts pre-rendered content in <no
     rmSync(publicDir, { recursive: true, force: true });
   }
 });
+
+test('search engines and AI tools get page metadata, structured data, a sitemap, robots.txt and llms.txt', async () => {
+  const publicDir = mkdtempSync(join(tmpdir(), 'resroom-public-'));
+  writeFileSync(join(publicDir, 'index.html'), '<html lang="zh-Hant-TW"><head><meta name="description" content="通用的描述" /><title>網站</title></head><body><div id="app"></div></body></html>');
+  const ORIGIN = 'https://resroom.example.edu.tw';
+  const site = await start({ publicDir, siteUrl: `${ORIGIN}/` });
+  try {
+    const headers = (await login(USER.username, USER.password, site.base)).headers;
+    const client = siteClient(site, headers);
+    await client.gql(SAVE_PAGE, { slug: 'seo-page', title: '服務說明', content: '# 標題\n\n提供**課業輔導**與生活協助，歡迎同學申請。', format: 'MARKDOWN', root: true });
+    const announcement = (await client.gql(SAVE_ANNOUNCEMENT, { title: '期末聚餐', content: '時間是 12 月 20 日中午，地點在資源教室。' })).data.saveAnnouncement;
+    const album = (await client.gql(SAVE_ALBUM, { name: '110(1)參訪', eventDate: '2021-10-01' })).data.saveAlbum;
+    const photo = (await client.upload(UPLOAD_PHOTO, { alt: '合照', albumId: album.id }, PNG, 'a.png')).data.uploadPhoto;
+    const document = (await client.upload(UPLOAD_DOCUMENT, { title: '申請表', category: '115學年度第一學期' }, 'x', 'a.pdf')).data.uploadDocument;
+    await site.noscript.refresh();
+    const text = async (path) => (await fetch(site.base + path)).text();
+    const jsonLd = (html) => [...html.matchAll(/<script type="application\/ld\+json">(.*?)<\/script>/g)].map((m) => JSON.parse(m[1]));
+
+    // 每頁的描述、canonical、Open Graph；通用的描述被取代
+    const page = await text('/seo-page');
+    assert.ok(!page.includes('通用的描述'));
+    assert.ok(page.includes('<meta name="description" content="標題 提供課業輔導與生活協助，歡迎同學申請。" />'));
+    assert.ok(page.includes(`<link rel="canonical" href="${ORIGIN}/seo-page" />`));
+    assert.ok(page.includes('<meta property="og:title" content="服務說明" />'));
+    assert.ok(page.includes(`<meta property="og:url" content="${ORIGIN}/seo-page" />`));
+    const pageData = jsonLd(page);
+    assert.equal(pageData[0]['@type'], 'WebPage');
+    assert.deepEqual(pageData[1].itemListElement.map((item) => item.item), [`${ORIGIN}/`, `${ORIGIN}/seo-page`]);
+
+    // 公告是 NewsArticle
+    const article = jsonLd(await text(`/announcements/${announcement.id}`))[0];
+    assert.equal(article['@type'], 'NewsArticle');
+    assert.equal(article.headline, '期末聚餐');
+    assert.equal(new Date(article.datePublished).getTime(), new Date(announcement.publishedAt).getTime());
+    assert.ok(article.description.includes('12 月 20 日'));
+
+    // 相簿是 ImageGallery，首頁有 WebSite 與 Organization
+    const gallery = jsonLd(await text(`/photos/${album.id}`))[0];
+    assert.equal(gallery['@type'], 'ImageGallery');
+    assert.deepEqual(gallery.image, [{ '@type': 'ImageObject', contentUrl: ORIGIN + photo.url, caption: '合照' }]);
+    assert.deepEqual(jsonLd(await text('/')).map((item) => item['@type']), ['WebSite', 'Organization']);
+
+    // 管理畫面不收錄
+    assert.ok((await text('/settings')).includes('<meta name="robots" content="noindex" />'));
+
+    const robots = await fetch(`${site.base}/robots.txt`);
+    assert.equal(robots.headers.get('content-type'), 'text/plain; charset=utf-8');
+    const robotsText = await robots.text();
+    assert.ok(robotsText.includes('Disallow: /settings'));
+    assert.ok(robotsText.includes(`Sitemap: ${ORIGIN}/sitemap.xml`));
+
+    const sitemap = await text('/sitemap.xml');
+    for (const path of ['/', '/announcements', `/announcements/${announcement.id}`, '/photos', `/photos/${album.id}`, '/documents', '/seo-page']) {
+      assert.ok(sitemap.includes(`<loc>${ORIGIN}${path}</loc>`), path);
+    }
+    assert.match(sitemap, /<lastmod>\d{4}-\d{2}-\d{2}T[\d:.]+Z<\/lastmod>/);
+
+    const llms = await text('/llms.txt');
+    assert.ok(llms.startsWith('# 示範學校資源教室\n\n> '));
+    assert.ok(llms.includes(`- [服務說明](${ORIGIN}/seo-page): 標題 提供課業輔導與生活協助，歡迎同學申請。`));
+    assert.ok(llms.includes(`- [期末聚餐](${ORIGIN}/announcements/${announcement.id})`));
+    assert.ok(llms.includes(`- [申請表](${ORIGIN}${document.url}): 115學年度第一學期，a.pdf`));
+    const full = await text('/llms-full.txt');
+    assert.ok(full.includes('## 服務說明') && full.includes('提供課業輔導與生活協助，歡迎同學申請。'));
+    assert.ok(full.includes('時間是 12 月 20 日中午，地點在資源教室。'));
+  } finally {
+    await site.stop();
+    rmSync(publicDir, { recursive: true, force: true });
+  }
+});
