@@ -9,6 +9,12 @@ BEGIN
   IF to_regtype('theme_mode') IS NULL THEN
     CREATE TYPE theme_mode AS ENUM ('SYSTEM', 'LIGHT', 'DARK');
   END IF;
+  IF to_regtype('nav_menu') IS NULL THEN
+    CREATE TYPE nav_menu AS ENUM ('UTILITY', 'MAIN');
+  END IF;
+  IF to_regtype('nav_service') IS NULL THEN
+    CREATE TYPE nav_service AS ENUM ('HOME', 'ANNOUNCEMENTS', 'PHOTOS', 'DOCUMENTS');
+  END IF;
 END $$;
 
 -- 主題顏色只能有這幾個鍵，值是 #rrggbb；沒有的鍵使用 web/src/style.css 的預設值
@@ -19,20 +25,6 @@ CREATE OR REPLACE FUNCTION is_theme_colors(colors JSONB) RETURNS BOOLEAN LANGUAG
       OR jsonb_typeof(c.value) <> 'string'
       OR c.value #>> '{}' !~ '^#[0-9a-f]{6}$'
   )
-$$;
-
--- 頁首選單的排列：utility 與 main 兩列，各是不重複的連結路徑（例如 /about），最多 100 個
-CREATE OR REPLACE FUNCTION is_navigation(nav JSONB) RETURNS BOOLEAN LANGUAGE sql IMMUTABLE AS $$
-  SELECT jsonb_typeof(nav) = 'object'
-    AND nav - 'utility' - 'main' = '{}'
-    AND jsonb_typeof(nav -> 'utility') = 'array'
-    AND jsonb_typeof(nav -> 'main') = 'array'
-    AND (
-      SELECT COALESCE(bool_and(
-        jsonb_typeof(item) = 'string' AND item #>> '{}' ~ '^/[a-z0-9/-]*$' AND char_length(item #>> '{}') <= 200
-      ), true) AND count(*) = count(DISTINCT item) AND count(*) <= 100
-      FROM jsonb_array_elements((nav -> 'utility') || (nav -> 'main')) AS item
-    )
 $$;
 
 -- 清單中每個物件的 field 都是符合 pattern 的文字，且不超過 max_length 字元
@@ -318,10 +310,54 @@ CREATE TABLE IF NOT EXISTS site_config (
 );
 INSERT INTO site_config DEFAULT VALUES ON CONFLICT DO NOTHING;
 
--- 預設的排列是網站原本的選單；沒有列出的頁面由網頁接在主選單後面
-ALTER TABLE site_config ADD COLUMN IF NOT EXISTS navigation JSONB NOT NULL
-  DEFAULT '{"utility": ["/", "/map", "/documents"], "main": ["/about", "/services", "/announcements", "/members", "/regulations", "/photos"]}'
-  CONSTRAINT site_config_navigation_check CHECK (is_navigation(navigation));
+-- 頁首選單的連結：每個連到一個頁面或一項網站功能，依 position 排列；頁面刪除時連結一起移除
+DO $$
+BEGIN
+  IF to_regclass('navigation_links') IS NOT NULL THEN
+    RETURN;
+  END IF;
+
+  CREATE TABLE navigation_links (
+    menu      nav_menu NOT NULL,
+    position  INTEGER NOT NULL,
+    page_slug TEXT UNIQUE REFERENCES pages (slug) ON DELETE CASCADE,
+    service   nav_service UNIQUE,
+    PRIMARY KEY (menu, position),
+    CONSTRAINT navigation_links_target_check CHECK ((page_slug IS NULL) <> (service IS NULL))
+  );
+
+  IF EXISTS (
+    SELECT FROM information_schema.columns
+    WHERE table_schema = current_schema() AND table_name = 'site_config' AND column_name = 'navigation'
+  ) THEN
+    -- 舊版存在 site_config.navigation 的路徑清單，例如 {"utility": ["/", "/about"], "main": ["/pages/a"]}
+    INSERT INTO navigation_links (menu, position, page_slug, service)
+    SELECT m.menu, i.n, CASE WHEN x.service IS NULL THEN x.slug END, x.service
+    FROM site_config,
+      (VALUES ('UTILITY'::nav_menu, 'utility'), ('MAIN', 'main')) AS m (menu, key),
+      jsonb_array_elements_text(navigation -> m.key) WITH ORDINALITY AS i (path, n),
+      LATERAL (SELECT
+        (CASE i.path WHEN '/' THEN 'HOME' WHEN '/announcements' THEN 'ANNOUNCEMENTS'
+          WHEN '/photos' THEN 'PHOTOS' WHEN '/documents' THEN 'DOCUMENTS' END)::nav_service AS service,
+        regexp_replace(i.path, '^/(pages/)?', '') AS slug
+      ) AS x
+    WHERE x.service IS NOT NULL OR x.slug IN (SELECT slug FROM pages);
+  ELSE
+    -- 新的網站只有網站功能；頁面由 npm run seed-content 加入，和 web/src/navigation.js 的 DEFAULT_NAVIGATION 一致
+    INSERT INTO navigation_links (menu, position, service) VALUES
+      ('UTILITY', 0, 'HOME'), ('MAIN', 0, 'ANNOUNCEMENTS'), ('MAIN', 1, 'PHOTOS');
+  END IF;
+END $$;
+
+ALTER TABLE site_config DROP COLUMN IF EXISTS navigation;
+DROP FUNCTION IF EXISTS is_navigation(JSONB);
+
+-- 整份取代頁首選單；links 是 navigation_links 欄位組成的 JSON 陣列。寫成一個函式，失敗時整份都不變
+CREATE OR REPLACE FUNCTION save_navigation(links JSONB) RETURNS VOID LANGUAGE plpgsql AS $$
+BEGIN
+  DELETE FROM navigation_links;
+  INSERT INTO navigation_links SELECT * FROM jsonb_populate_recordset(NULL::navigation_links, links);
+END $$;
 
 -- 頁尾的設定搬到新的資料表；版權名稱已改成固定值，不再保存
 DO $$

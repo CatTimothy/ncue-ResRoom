@@ -1,41 +1,34 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { DEFAULT_NAVIGATION, moveNavLink, NAV_LINKS, navMenus, navPaths } from './navigation.js';
+import { allLinks, editorRows, linkInput, menuLink, moveLink, navigationKeys } from './navigation.js';
 
-test('沒有設定時用預設的排列，所有固定連結都在上面', () => {
-  const menus = navMenus(null);
-  assert.deepEqual(navPaths(menus), DEFAULT_NAVIGATION);
-  assert.deepEqual(menus.utility[0], { to: '/', label: '首頁' });
-  assert.equal(menus.utility.length + menus.main.length, Object.keys(NAV_LINKS).length);
+test('連結換成網址與名稱：內建頁面用固定網址，其他頁面在 /pages 底下', () => {
+  assert.deepEqual(menuLink({ service: 'HOME', page: null }), { key: 'HOME', to: '/', label: '首頁' });
+  assert.deepEqual(menuLink({ service: null, page: { slug: 'about', title: '簡介' } }), { key: 'page:about', to: '/about', label: '簡介' });
+  assert.equal(menuLink({ service: null, page: { slug: 'photos', title: '照片' } }).to, '/pages/photos');
 });
 
-test('依儲存的排列顯示，自訂頁面用頁面標題', () => {
-  const pages = [{ slug: 'a', title: '頁面 A' }];
-  const menus = navMenus({ utility: ['/pages/a', '/'], main: ['/photos'] }, pages);
-  assert.deepEqual(menus.utility, [{ to: '/pages/a', label: '頁面 A' }, { to: '/', label: '首頁' }]);
-  assert.equal(menus.main[0].to, '/photos');
+test('key 與 API 的輸入互換', () => {
+  assert.deepEqual(linkInput('PHOTOS'), { service: 'PHOTOS' });
+  assert.deepEqual(linkInput('page:a-b'), { page: 'a-b' });
+  const navigation = { utility: [{ service: 'HOME', page: null }], main: [{ service: null, page: { slug: 'a', title: 'A' } }] };
+  assert.deepEqual(navigationKeys(navigation), { utility: ['HOME'], main: ['page:a'] });
 });
 
-test('內建頁面不會以自訂頁面再出現一次，和其他功能同名的自訂頁面照常出現', () => {
-  const menus = navMenus(null, [{ slug: 'about', title: '資源教室簡介' }, { slug: 'photos', title: '照片' }]);
-  assert.ok(!menus.main.some((link) => link.to === '/pages/about'));
-  assert.ok(menus.main.some((link) => link.to === '/pages/photos'));
+test('編輯畫面列出還沒放進選單的功能與頁面，找不到的與重複的拿掉', () => {
+  const links = allLinks([{ slug: 'a', title: 'A' }, { slug: 'b', title: 'B' }]);
+  const rows = editorRows({ utility: ['HOME', 'page:gone', 'HOME'], main: ['page:a', 'HOME'] }, links);
+  assert.deepEqual(rows.utility.map((link) => link.key), ['HOME']);
+  assert.deepEqual(rows.main.map((link) => link.key), ['page:a']);
+  assert.deepEqual(rows.unused.map((link) => link.key), ['ANNOUNCEMENTS', 'PHOTOS', 'DOCUMENTS', 'page:b']);
 });
 
-test('已刪除的頁面拿掉，沒排過的連結接在主選單後面，重複的只留第一個', () => {
-  const pages = [{ slug: 'new', title: '新頁面' }];
-  const menus = navMenus({ utility: ['/', '/pages/gone', '/'], main: ['/'] }, pages);
-  assert.deepEqual(menus.utility.map((link) => link.to), ['/']);
-  assert.ok(!menus.main.some((link) => link.to === '/'));
-  assert.equal(menus.main.at(-1).to, '/pages/new');
-  assert.equal(menus.main.length, Object.keys(NAV_LINKS).length);
-});
-
-test('移動連結：同一列換位置，或換到另一列', () => {
-  const navigation = { utility: ['/', '/map'], main: ['/about', '/photos'] };
-  assert.deepEqual(moveNavLink(navigation, '/', 'utility', 1), { utility: ['/map', '/'], main: ['/about', '/photos'] });
-  assert.deepEqual(moveNavLink(navigation, '/map', 'main', 1), { utility: ['/'], main: ['/about', '/map', '/photos'] });
-  assert.deepEqual(moveNavLink(navigation, '/about', 'utility', 99), { utility: ['/', '/map', '/about'], main: ['/photos'] });
-  assert.deepEqual(moveNavLink(navigation, '/photos', 'main', -1), { utility: ['/', '/map'], main: ['/photos', '/about'] });
-  assert.deepEqual(navigation.utility, ['/', '/map'], '不改動原本的排列');
+test('移動連結：同一列換位置、換到另一列，或從選單移除', () => {
+  const keys = { utility: ['HOME', 'PHOTOS'], main: ['page:a'] };
+  assert.deepEqual(moveLink(keys, 'HOME', 'utility', 1).utility, ['PHOTOS', 'HOME']);
+  assert.deepEqual(moveLink(keys, 'page:b', 'main', 0), { utility: ['HOME', 'PHOTOS'], main: ['page:b', 'page:a'] });
+  assert.deepEqual(moveLink(keys, 'PHOTOS', 'unused', 0), { utility: ['HOME'], main: ['page:a'] });
+  assert.deepEqual(moveLink(keys, 'page:a', 'utility', -1).utility, ['page:a', 'HOME', 'PHOTOS']);
+  assert.deepEqual(moveLink(keys, 'page:a', 'utility', 99).utility, ['HOME', 'PHOTOS', 'page:a']);
+  assert.deepEqual(keys.utility, ['HOME', 'PHOTOS'], '不改動原本的排列');
 });

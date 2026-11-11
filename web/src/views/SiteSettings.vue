@@ -1,12 +1,14 @@
 <script setup>
 import { watch } from 'vue';
 import { useRouter } from 'vue-router';
-import { can, currentUser, saveSiteConfig, userChecked } from '../api.js';
+import { can, currentUser, fetchPages, saveSiteSettings, userChecked } from '../api.js';
 import EditorForm from '../components/EditorForm.vue';
 import ImageField from '../components/ImageField.vue';
 import NavEditor from '../components/NavEditor.vue';
-import { DEFAULT_IMAGES, pages, siteConfig } from '../siteConfig.js';
+import { linkInput, mapMenus, navigationKeys } from '../navigation.js';
+import { DEFAULT_IMAGES, navigation, siteConfig } from '../siteConfig.js';
 import { defaultColors, THEME_COLORS } from '../theme.js';
+import { useCachedItem } from '../useCachedItem.js';
 import { useLeaveGuard } from '../useEditMode.js';
 import { useEditor } from '../useEditor.js';
 
@@ -18,6 +20,7 @@ const THEMES = {
 const DEFAULT_COLORS = Object.fromEntries(Object.entries(THEMES).map(([field, { mode }]) => [field, defaultColors(mode)]));
 
 const router = useRouter();
+const { item: pages } = useCachedItem(() => 'pages', fetchPages);
 const { form, changed, busy, error, reset, markSaved, run } = useEditor({});
 useLeaveGuard(changed);
 
@@ -29,11 +32,12 @@ const onlyChanged = (field) => Object.fromEntries(
   Object.entries(form[field]).map(([name, color]) => [name, color === DEFAULT_COLORS[field][name] ? null : color]),
 );
 
-// 設定載入後填入表單；編輯中不被背景更新蓋掉
-watch(siteConfig, (config) => {
-  if (!config || changed.value) return;
+// 設定與選單都載入後填入表單；編輯中不被背景更新蓋掉
+watch([siteConfig, navigation], ([config, nav]) => {
+  if (!config || !nav || changed.value) return;
   reset({
     ...config,
+    navigation: navigationKeys(nav),
     teachers: config.teachers.map((teacher) => ({ ...teacher })),
     lightTheme: withDefaults('lightTheme', config.lightTheme),
     darkTheme: withDefaults('darkTheme', config.darkTheme),
@@ -41,7 +45,8 @@ watch(siteConfig, (config) => {
 }, { immediate: true });
 
 const submit = () => run(async () => {
-  await saveSiteConfig({ ...form, lightTheme: onlyChanged('lightTheme'), darkTheme: onlyChanged('darkTheme') });
+  const { navigation: keys, ...config } = form;
+  await saveSiteSettings({ ...config, lightTheme: onlyChanged('lightTheme'), darkTheme: onlyChanged('darkTheme') }, mapMenus(keys, linkInput));
   markSaved();
 });
 
@@ -50,7 +55,7 @@ const leave = () => router.push('/');
 
 <template>
   <div class="page">
-    <p v-if="!userChecked || (currentUser && !siteConfig)" class="loading">載入中…</p>
+    <p v-if="!userChecked || (currentUser && !form.navigation)" class="loading">載入中…</p>
     <p v-else-if="!can('MANAGE_SITE_CONFIG')">你沒有修改網站設定的權限。</p>
 
     <EditorForm

@@ -1,7 +1,7 @@
 import { nextTick } from 'vue';
 import { createRouter, createWebHistory } from 'vue-router';
 import { canAnimate } from './motion.js';
-import { BUILT_IN_PAGES, NAV_LINKS } from './navigation.js';
+import { BUILT_IN_PAGES, SERVICES } from './navigation.js';
 import { focusMain, setTitle } from './page.js';
 import Album from './views/Album.vue';
 import Albums from './views/Albums.vue';
@@ -25,11 +25,11 @@ export const router = createRouter({
       props: { slug, fallbackTitle: title },
       meta: { title },
     })),
-    { path: '/announcements', component: Announcements, meta: { title: NAV_LINKS['/announcements'] } },
-    { path: '/announcements/:id', component: Announcement, props: true, meta: { title: NAV_LINKS['/announcements'] } },
-    { path: '/photos', component: Albums, meta: { title: NAV_LINKS['/photos'] } },
-    { path: '/photos/:id', component: Album, props: true, meta: { title: NAV_LINKS['/photos'] } },
-    { path: '/documents', component: Documents, meta: { title: NAV_LINKS['/documents'] } },
+    { path: SERVICES.ANNOUNCEMENTS.to, component: Announcements, meta: { title: SERVICES.ANNOUNCEMENTS.label } },
+    { path: `${SERVICES.ANNOUNCEMENTS.to}/:id`, component: Announcement, props: true, meta: { title: SERVICES.ANNOUNCEMENTS.label } },
+    { path: SERVICES.PHOTOS.to, component: Albums, meta: { title: SERVICES.PHOTOS.label } },
+    { path: `${SERVICES.PHOTOS.to}/:id`, component: Album, props: true, meta: { title: SERVICES.PHOTOS.label } },
+    { path: SERVICES.DOCUMENTS.to, component: Documents, meta: { title: SERVICES.DOCUMENTS.label } },
     { path: '/pages', component: Pages, meta: { title: '所有頁面' } },
     { path: '/pages/:slug', component: PageView, props: true },
     { path: '/settings', component: SiteSettings, meta: { title: '網站設定' } },

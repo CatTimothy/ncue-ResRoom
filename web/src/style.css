@@ -492,6 +492,13 @@ h2 {
   opacity: 0.85;
 }
 
+/* 未加入的連結不在頁首，用一般的底色和虛線框 */
+.nav-editor__row--unused .nav-editor__list {
+  border: 2px dashed var(--line);
+  background: transparent;
+  color: var(--text);
+}
+
 .nav-editor__empty {
   align-self: center;
   padding: 0 0.5rem;

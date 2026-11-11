@@ -198,7 +198,7 @@ test('users never expose the password hash', async () => {
   assert.deepEqual(columns.map((c) => c.columnName), ['username', 'password_hash', 'permissions']);
 });
 
-const SAVE_CONFIG_FROM_CURRENT = 'mutation { saveSiteConfig(input: { siteTitle: "t", logoText: "", campusAlt: "a", heroPrefix: "", heroTitle: "t", heroText: "", footerTitle: "標題", phone: "bad", extension: "", hours: "", teachers: [], defaultTheme: SYSTEM, lightTheme: {}, darkTheme: {}, navigation: { utility: [], main: [] } }) { phone } }';
+const SAVE_CONFIG_FROM_CURRENT = 'mutation { saveSiteConfig(input: { siteTitle: "t", logoText: "", campusAlt: "a", heroPrefix: "", heroTitle: "t", heroText: "", footerTitle: "標題", phone: "bad", extension: "", hours: "", teachers: [], defaultTheme: SYSTEM, lightTheme: {}, darkTheme: {} }) { phone } }';
 const CREATE_USER = 'mutation ($u: String!, $p: String!, $r: [Permission!]!) { createUser(username: $u, password: $p, permissions: $r) { username permissions } }';
 const SET_PERMISSIONS = 'mutation ($u: String!, $r: [Permission!]!) { setUserPermissions(username: $u, permissions: $r) { username permissions } }';
 const CHANGE_PASSWORD = 'mutation ($c: String!, $n: String!) { changePassword(currentPassword: $c, newPassword: $n) }';
@@ -264,7 +264,7 @@ test('each permission only allows its own operations', async () => {
     MANAGE_ALBUMS: ['mutation { saveAlbum(name: "相簿") { id } }', 'mutation { deleteAlbum(id: "0") }', 'mutation { deletePhoto(id: "0") }'],
     MANAGE_DOCUMENTS: ['mutation { deleteDocument(id: "0") }', 'mutation { deleteDocuments(ids: ["0"]) }', 'mutation { setDocumentsCategory(ids: ["0"]) }'],
     MANAGE_PAGES: ['mutation { savePage(slug: "perm-test", title: "t", format: MARKDOWN, content: "c") { slug } }', 'mutation { deletePage(slug: "perm-test") }'],
-    MANAGE_SITE_CONFIG: [SAVE_CONFIG_FROM_CURRENT],
+    MANAGE_SITE_CONFIG: [SAVE_CONFIG_FROM_CURRENT, 'mutation { saveNavigation(input: { utility: [{}], main: [] }) { main { service } } }'],
     MANAGE_USERS: ['{ users { username } }', 'mutation { createUser(username: "perm.test", password: "perm-password-123", permissions: []) { username } }', 'mutation { setUserPermissions(username: "nobody.here", permissions: []) { username } }'],
   };
   assert.deepEqual(Object.keys(OPERATIONS), ALL_PERMISSIONS);
@@ -650,8 +650,7 @@ test('pages reject bad input', async () => {
 
 const CONFIG_FIELDS = `siteTitle logoText faviconUrl logoUrl campusUrl campusAlt heroPrefix heroTitle heroText
   footerTitle phone extension hours teachers { name email extension }
-  defaultTheme lightTheme { background surface text primary accent } darkTheme { background surface text primary accent }
-  navigation { utility main }`;
+  defaultTheme lightTheme { background surface text primary accent } darkTheme { background surface text primary accent }`;
 const CONFIG_QUERY = `{ siteConfig { ${CONFIG_FIELDS} } }`;
 const SAVE_CONFIG = `mutation ($input: SiteConfigInput!) { saveSiteConfig(input: $input) { ${CONFIG_FIELDS} } }`;
 const NO_COLORS = { background: null, surface: null, text: null, primary: null, accent: null };
@@ -673,7 +672,6 @@ const CONFIG = {
   defaultTheme: 'SYSTEM',
   lightTheme: NO_COLORS,
   darkTheme: NO_COLORS,
-  navigation: { utility: ['/'], main: ['/about'] },
 };
 
 test('site config starts with the original content and only logged-in users can edit it', async () => {
@@ -700,7 +698,6 @@ test('site config starts with the original content and only logged-in users can 
     defaultTheme: 'SYSTEM',
     lightTheme: NO_COLORS,
     darkTheme: NO_COLORS,
-    navigation: DEFAULT_NAVIGATION, // 網頁在設定載入前用同一份排列
   });
 
   assert.equal((await gql(SAVE_CONFIG, { input: CONFIG }, {})).errors[0].extensions.code, 'UNAUTHENTICATED');
@@ -714,7 +711,6 @@ test('site config starts with the original content and only logged-in users can 
     teachers: [{ name: ' 王小明 ', email: ' a@example.com ', extension: ' 1234 ' }, { name: '資源教室', email: 'b@example.com', extension: '' }],
     defaultTheme: 'DARK',
     darkTheme: { ...NO_COLORS, accent: '#112233' },
-    navigation: { utility: ['/documents'], main: ['/pages/a-b', '/', '/photos'] },
   };
   const expected = {
     ...saved,
@@ -734,14 +730,84 @@ test('site config starts with the original content and only logged-in users can 
   await gql(SAVE_CONFIG, { input: { ...CONFIG, teachers: expected.teachers } });
 });
 
-test('site config rejects a malformed navigation', async () => {
-  for (const navigation of [
-    { utility: ['/'], main: ['/'] },
-    { utility: [], main: ['about'] },
-    { utility: [], main: ['/a b'] },
-    { utility: [], main: Array.from({ length: 101 }, (_, i) => `/pages/p${i}`) },
-  ]) {
-    assert.match((await gql(SAVE_CONFIG, { input: { ...CONFIG, navigation } })).errors[0].message, /頁首選單/, JSON.stringify(navigation));
+
+const NAVIGATION = '{ navigation { utility { service page { slug title } } main { service page { slug title } } } }';
+const SAVE_NAVIGATION = `mutation ($input: NavigationInput!) {
+  saveNavigation(input: $input) { utility { service page { slug } } main { service page { slug } } }
+}`;
+const slugsOf = (links) => links.map((link) => link.service ?? link.page.slug);
+const saveNavigation = (input, headers) => gql(SAVE_NAVIGATION, { input }, headers);
+/** 測試改過選單後還原成預設的網站功能 */
+const resetNavigation = () => saveNavigation({
+  utility: DEFAULT_NAVIGATION.utility.map(({ service }) => ({ service })),
+  main: DEFAULT_NAVIGATION.main.map(({ service }) => ({ service })),
+});
+
+test('navigation starts with the site features the web app shows before it loads', async () => {
+  const { navigation } = (await gql(NAVIGATION, {}, {})).data;
+  assert.deepEqual(navigation, DEFAULT_NAVIGATION);
+});
+
+test('navigation links pages and site features, and only MANAGE_SITE_CONFIG can change it', async () => {
+  await gql(SAVE_PAGE, { slug: 'nav-a', title: '頁面 A', format: 'MARKDOWN', content: 'a' });
+  await gql(SAVE_PAGE, { slug: 'nav-b', title: '頁面 B', format: 'MARKDOWN', content: 'b' });
+  const layout = { utility: [{ page: 'nav-b' }, { service: 'HOME' }], main: [{ service: 'DOCUMENTS' }, { page: 'nav-a' }] };
+
+  assert.equal((await saveNavigation(layout, {})).errors[0].extensions.code, 'UNAUTHENTICATED');
+  const editor = await loginWith('nav-editor', ['MANAGE_PAGES']);
+  assert.equal((await saveNavigation(layout, editor)).errors[0].extensions.code, 'FORBIDDEN');
+
+  const saved = (await saveNavigation(layout)).data.saveNavigation;
+  assert.deepEqual(slugsOf(saved.utility), ['nav-b', 'HOME']);
+  assert.deepEqual(slugsOf(saved.main), ['DOCUMENTS', 'nav-a']);
+  assert.equal((await gql(NAVIGATION, {}, {})).data.navigation.utility[0].page.title, '頁面 B');
+
+  // 刪除頁面時連結一起移除
+  await gql('mutation { deletePage(slug: "nav-b") }');
+  assert.deepEqual(slugsOf((await gql(NAVIGATION)).data.navigation.utility), ['HOME']);
+
+  const rejects = async (change, message) => {
+    assert.match((await saveNavigation({ ...layout, utility: [], ...change })).errors[0].message, message);
+    assert.deepEqual(slugsOf((await gql(NAVIGATION)).data.navigation.main), ['DOCUMENTS', 'nav-a'], 'a rejected save changes nothing');
+  };
+  await rejects({ utility: [{ page: 'nav-a', service: 'HOME' }] }, /其中一個/);
+  await rejects({ utility: [{}] }, /其中一個/);
+  await rejects({ utility: [{ page: 'nav-a' }] }, /只能出現一次/);
+  await rejects({ utility: [{ page: 'missing' }] }, /不存在的頁面/);
+
+  await gql('mutation { deletePage(slug: "nav-a") }');
+  await resetNavigation();
+});
+
+test('old navigation paths in site config are moved to the navigation table', async () => {
+  const database = await createDatabase();
+  try {
+    await (await openDb(database.url)).close();
+    const client = new pg.Client({ connectionString: database.url });
+    await client.connect();
+    await client.query(`
+      DROP TABLE navigation_links;
+      INSERT INTO pages (slug, title, format, source) VALUES ('about', '簡介', 'MARKDOWN', ''), ('extra', '其他', 'MARKDOWN', '');
+      ALTER TABLE site_config ADD COLUMN navigation JSONB;
+      UPDATE site_config SET navigation = '{"utility": ["/", "/about", "/gone"], "main": ["/pages/extra", "/photos"]}';
+    `);
+    await client.end();
+
+    const db = await openDb(database.url);
+    try {
+      const rows = await db.prepare('SELECT menu, page_slug, service FROM navigation_links ORDER BY menu, position').all();
+      assert.deepEqual(rows.map((row) => [row.menu, row.pageSlug ?? row.service]), [
+        ['UTILITY', 'HOME'], ['UTILITY', 'about'], ['MAIN', 'extra'], ['MAIN', 'PHOTOS'],
+      ]);
+      const column = await db.prepare(`
+        SELECT 1 FROM information_schema.columns WHERE table_name = 'site_config' AND column_name = 'navigation'
+      `).get();
+      assert.equal(column, undefined);
+    } finally {
+      await db.close();
+    }
+  } finally {
+    await dropDatabase(database.name);
   }
 });
 
@@ -1291,6 +1357,7 @@ test('content images are uploaded for Markdown and removed when no longer refere
   await sweep();
   assert.equal((await fetch(app.base + fresh.url)).status, 200);
   await app.db.prepare('DELETE FROM photos WHERE album_id IS NULL').run();
+  await resetNavigation();
 });
 
 test('documents can be edited', async () => {
@@ -1344,12 +1411,18 @@ test('seed content creates pages and documents once and never overwrites', async
   assert.equal(documents[0].title, [...documents.map((d) => d.title)].sort()[0]);
   assert.equal(documents[0].category, '111學年度第一學期');
 
+  const { navigation } = (await gql(NAVIGATION)).data;
+  assert.deepEqual(slugsOf(navigation.utility), ['HOME', 'map', 'DOCUMENTS']);
+  assert.deepEqual(slugsOf(navigation.main), ['about', 'services', 'ANNOUNCEMENTS', 'members', 'regulations', 'PHOTOS']);
+  await saveNavigation({ utility: [{ page: 'about' }], main: [] });
+
   await gql(SAVE_PAGE, { slug: 'about', title: '改過', format: 'MARKDOWN', content: '改過' });
   const count = uploadsCount();
   await seedContent({ db: app.db, storage, seedDir });
   assert.equal(uploadsCount(), count);
   assert.equal((await gql('{ page(slug: "about") { title } }')).data.page.title, '改過');
   assert.equal((await gql('{ documents(limit: 100) { id } }')).data.documents.length, 7);
+  assert.deepEqual(slugsOf((await gql(NAVIGATION)).data.navigation.utility), ['about'], 'a navigation with pages is kept');
 
   for (const { slug } of pages) await gql('mutation ($s: String!) { deletePage(slug: $s) }', { s: slug });
   for (const { id } of (await gql('{ documents(limit: 100) { id } }')).data.documents) await gql(`mutation { deleteDocument(id: ${id}) }`);

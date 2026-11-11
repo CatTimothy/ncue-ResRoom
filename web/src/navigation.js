@@ -1,4 +1,4 @@
-/** 在選單上有固定位置的頁面，網址是 /<slug>（見 router.js） */
+/** 有固定網址 /<slug> 的頁面（見 router.js）；頁面還沒建立時用這裡的標題 */
 export const BUILT_IN_PAGES = {
   about: '資源教室簡介',
   services: '服務項目',
@@ -7,54 +7,59 @@ export const BUILT_IN_PAGES = {
   map: '位置圖',
 };
 
-/** 頁首選單上的固定連結：路徑與名稱，也是這些頁面的標題。自訂頁面的路徑是 /pages/<slug> */
-export const NAV_LINKS = {
-  '/': '首頁',
-  '/documents': '文件下載',
-  '/announcements': '最新消息',
-  '/photos': '活動剪影',
-  ...Object.fromEntries(Object.entries(BUILT_IN_PAGES).map(([slug, title]) => [`/${slug}`, title])),
+/** 頁首選單可以連到的網站功能，對應 API 的 NavService；名稱也是這些頁面的標題 */
+export const SERVICES = {
+  HOME: { to: '/', label: '首頁' },
+  ANNOUNCEMENTS: { to: '/announcements', label: '最新消息' },
+  PHOTOS: { to: '/photos', label: '活動剪影' },
+  DOCUMENTS: { to: '/documents', label: '文件下載' },
 };
 
-/** 網站設定還沒載入時用的排列，和資料庫的預設值一樣（test/api.test.js 會比對） */
+/** 選單還沒載入時用的排列，和資料庫建立時的內容一樣（test/api.test.js 會比對）；頁面由 seed-content 加入 */
 export const DEFAULT_NAVIGATION = {
-  utility: ['/', '/map', '/documents'],
-  main: ['/about', '/services', '/announcements', '/members', '/regulations', '/photos'],
+  utility: [{ service: 'HOME', page: null }],
+  main: [{ service: 'ANNOUNCEMENTS', page: null }, { service: 'PHOTOS', page: null }],
 };
 
-/**
- * 把儲存的排列換成兩列連結 { utility: [{ to, label }], main: [...] }。
- * 已刪除的頁面拿掉；沒有排過的連結（例如新增的頁面）依序接在主選單後面
- */
-export function navMenus(navigation, customPages = []) {
-  const labels = new Map(Object.entries(NAV_LINKS));
-  // 內建頁面（例如 about）已有固定的連結，不再以 /pages/about 出現一次
-  for (const page of customPages) {
-    if (!(page.slug in BUILT_IN_PAGES)) labels.set(`/pages/${page.slug}`, page.title);
-  }
+/** 頁面的網址：內建頁面是 /<slug>，其他頁面在 /pages 底下 */
+export const pagePath = (slug) => (slug in BUILT_IN_PAGES ? `/${slug}` : `/pages/${slug}`);
 
-  const placed = new Set();
-  const row = (paths) => paths.filter((to) => labels.has(to) && !placed.has(to) && placed.add(to));
-  const utility = row(navigation?.utility ?? DEFAULT_NAVIGATION.utility);
-  const main = row(navigation?.main ?? DEFAULT_NAVIGATION.main);
-  main.push(...row([...labels.keys()]));
+/** 對選單的兩列各自套用 fn */
+export const mapMenus = (navigation, fn) => ({ utility: navigation.utility.map(fn), main: navigation.main.map(fn) });
 
-  const links = (paths) => paths.map((to) => ({ to, label: labels.get(to) }));
-  return { utility: links(utility), main: links(main) };
+/** API 的連結 { service, page } 換成畫面用的 { key, to, label }；key 是功能名稱或 page:<slug> */
+export const menuLink = ({ service, page }) => (service
+  ? { key: service, ...SERVICES[service] }
+  : { key: `page:${page.slug}`, to: pagePath(page.slug), label: page.title });
+
+/** key 換回 saveNavigation 的輸入 */
+export const linkInput = (key) => (key.startsWith('page:') ? { page: key.slice('page:'.length) } : { service: key });
+
+/** API 的選單換成 { utility: [key], main: [key] }，網站設定編輯的就是這個 */
+export const navigationKeys = (navigation) => mapMenus(navigation, (link) => menuLink(link).key);
+
+/** 所有可以放進選單的連結：網站功能與每個頁面（pages 是 { slug, title }），key → 連結 */
+export const allLinks = (pages) => new Map(
+  [...Object.keys(SERVICES).map((service) => ({ service })), ...pages.map((page) => ({ page }))]
+    .map(menuLink)
+    .map((link) => [link.key, link]),
+);
+
+/** 編輯畫面的三列：兩列選單，加上還沒放進選單的連結。找不到的 key（例如已刪除的頁面）與重複的拿掉 */
+export function editorRows(keys, links) {
+  const used = new Set();
+  const row = (list) => list.filter((key) => links.has(key) && !used.has(key) && used.add(key)).map((key) => links.get(key));
+  const utility = row(keys.utility);
+  const main = row(keys.main);
+  return { utility, main, unused: [...links.values()].filter((link) => !used.has(link.key)) };
 }
 
-/** navMenus 的結果換回可以儲存的路徑 */
-export const navPaths = (menus) => ({
-  utility: menus.utility.map((link) => link.to),
-  main: menus.main.map((link) => link.to),
-});
-
-/** 把 path 移到 to 那一列的第 index 個位置，回傳新的排列 */
-export function moveNavLink(navigation, path, to, index) {
+/** 把 key 移到 to 那一列的第 index 個位置，回傳新的 { utility, main }；to 不是這兩列（例如「未加入」）時就是從選單移除 */
+export function moveLink(keys, key, to, index) {
   const result = {
-    utility: navigation.utility.filter((item) => item !== path),
-    main: navigation.main.filter((item) => item !== path),
+    utility: keys.utility.filter((item) => item !== key),
+    main: keys.main.filter((item) => item !== key),
   };
-  result[to].splice(Math.max(0, Math.min(index, result[to].length)), 0, path);
+  result[to]?.splice(Math.max(0, Math.min(index, result[to].length)), 0, key);
   return result;
 }

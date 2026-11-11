@@ -4,8 +4,8 @@ import { useRoute } from 'vue-router';
 import { can, currentUser, logout, notice } from './api.js';
 import SiteFooter from './components/SiteFooter.vue';
 import UserSettings from './components/UserSettings.vue';
-import { navMenus } from './navigation.js';
-import { pages, siteConfig, siteImage } from './siteConfig.js';
+import { DEFAULT_NAVIGATION, mapMenus, menuLink } from './navigation.js';
+import { navigation, siteConfig, siteImage } from './siteConfig.js';
 import { themeMode, toggleTheme } from './theme.js';
 import { useDropdown } from './useDropdown.js';
 
@@ -13,8 +13,8 @@ const route = useRoute();
 const settings = useTemplateRef('settings');
 const logo = siteImage('logoUrl');
 
-// 管理員另外新增的頁面依網站設定的排列放進選單，沒排過的接在主選單後面
-const menus = computed(() => navMenus(siteConfig.value?.navigation, pages.value ?? []));
+// 選單的內容在網站設定排列；載入前先顯示預設的網站功能
+const menus = computed(() => mapMenus(navigation.value ?? DEFAULT_NAVIGATION, menuLink));
 
 // 窄螢幕時選單收進「選單」按鈕；帳號相關的功能收在帳號名稱的選單
 const { open: menuOpen, toggle: toggleMenu, close: closeMenu } = useDropdown('menu');
@@ -125,7 +125,7 @@ async function signOut() {
           <nav v-if="menus[row].length" :class="`${row}-nav`" :aria-label="label">
             <RouterLink
               v-for="link in menus[row]"
-              :key="link.to"
+              :key="link.key"
               :to="link.to"
               :class="{ 'is-current': isCurrent(link.to) }"
             >{{ link.label }}</RouterLink>

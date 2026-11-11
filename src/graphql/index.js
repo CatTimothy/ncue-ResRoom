@@ -4,6 +4,7 @@ import { announcementsTypeDefs, createAnnouncementsResolvers } from './announcem
 import { authTypeDefs, createAuthResolvers } from './auth.js';
 import { contentImagesTypeDefs, createContentImagesResolvers } from './content-images.js';
 import { createDocumentsResolvers, documentsTypeDefs } from './documents.js';
+import { createNavigationResolvers, navigationTypeDefs } from './navigation.js';
 import { createSiteConfigResolvers, siteConfigTypeDefs } from './site-config.js';
 import { createPagesResolvers, pagesTypeDefs } from './pages.js';
 import { createPhotosResolvers, photosTypeDefs } from './photos.js';
@@ -36,6 +37,7 @@ export function createGraphQLHandler({ db, storage, sessions, production, allowe
         contentImagesTypeDefs,
         visitsTypeDefs,
         siteConfigTypeDefs,
+        navigationTypeDefs,
       ],
       resolvers: [
         createAuthResolvers(deps),
@@ -47,6 +49,7 @@ export function createGraphQLHandler({ db, storage, sessions, production, allowe
         createContentImagesResolvers(deps),
         createVisitsResolvers(deps),
         createSiteConfigResolvers(deps),
+        createNavigationResolvers(deps),
       ],
     }),
     context: ({ request }) => sessions.current(request.headers.get('cookie')),

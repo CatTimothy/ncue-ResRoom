@@ -27,9 +27,9 @@ const remove = (page) => confirmDelete(`確定要刪除頁面「${page.title}」
         </div>
         <ul v-if="pages?.length" class="document-list">
           <li v-for="page in pages" :key="page.slug">
-            <RouterLink :to="`/pages/${page.slug}`">{{ page.title }}</RouterLink>
+            <RouterLink :to="pagePath(page.slug)">{{ page.title }}</RouterLink>
             <div v-if="can('MANAGE_PAGES')" class="row-actions">
-              <RouterLink class="button button--small button--quiet" :aria-label="`編輯頁面：${page.title}`" :to="`/pages/${page.slug}?edit=1`">編輯</RouterLink>
+              <RouterLink class="button button--small button--quiet" :aria-label="`編輯頁面：${page.title}`" :to="`${pagePath(page.slug)}?edit=1`">編輯</RouterLink>
               <button type="button" class="button button--small button--quiet" :aria-label="`刪除頁面：${page.title}`" @click="remove(page)">刪除</button>
             </div>
           </li>

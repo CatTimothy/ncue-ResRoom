@@ -124,16 +124,27 @@ export const recordVisit = () => query('mutation { recordVisit }');
 const THEME_FIELDS = 'background surface text primary accent';
 const SITE_CONFIG_FIELDS = `siteTitle logoText faviconUrl logoUrl campusUrl campusAlt heroPrefix heroTitle heroText
   footerTitle phone extension hours teachers { name email extension }
-  defaultTheme lightTheme { ${THEME_FIELDS} } darkTheme { ${THEME_FIELDS} }
-  navigation { utility main }`;
+  defaultTheme lightTheme { ${THEME_FIELDS} } darkTheme { ${THEME_FIELDS} }`;
 
 export const fetchSiteConfig = () => query(`{ siteConfig { ${SITE_CONFIG_FIELDS} } }`);
 
-export const saveSiteConfig = (input) => mutate(
-  `mutation ($input: SiteConfigInput!) { saveSiteConfig(input: $input) { siteTitle } }`,
-  { input },
+/** 網站設定與頁首選單在同一個請求儲存；navigation 是 { utility, main }，每項是 { page } 或 { service } */
+export const saveSiteSettings = (input, navigation) => mutate(
+  `mutation ($input: SiteConfigInput!, $navigation: NavigationInput!) {
+    saveNavigation(input: $navigation) { main { service } }
+    saveSiteConfig(input: $input) { siteTitle }
+  }`,
+  { input, navigation },
   '網站設定已儲存',
 );
+
+// 頁首選單
+const NAV_LINK_FIELDS = 'service page { slug title }';
+
+export const fetchNavigation = () => query(
+  `{ navigation { utility { ${NAV_LINK_FIELDS} } main { ${NAV_LINK_FIELDS} } } }`,
+);
+
 
 // 內文圖片
 export const uploadContentImage = (file) => sendFile(

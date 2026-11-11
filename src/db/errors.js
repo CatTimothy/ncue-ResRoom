@@ -32,7 +32,10 @@ const CONSTRAINT_MESSAGES = {
   site_config_teacher_name_check: '老師的姓名不可為空，且不可超過 100 字元',
   site_config_teacher_email_check: '老師的電子郵件格式不正確',
   site_config_teacher_extension_check: '老師的分機不可超過 50 字元',
-  site_config_navigation_check: '頁首選單的格式不正確，或有重複的連結',
+  navigation_links_target_check: '每個連結要指定 page 或 service 其中一個',
+  navigation_links_page_slug_fkey: '頁首選單裡有不存在的頁面',
+  navigation_links_page_slug_key: '同一個頁面或功能只能出現一次',
+  navigation_links_service_key: '同一個頁面或功能只能出現一次',
 };
 
 const INVALID_VALUE_MESSAGES = {
@@ -44,7 +47,7 @@ const INVALID_VALUE_MESSAGES = {
 
 /** 把資料庫拒絕的值轉成使用者看得懂的錯誤；其他錯誤維持原樣，由 Yoga 遮蔽 */
 export function translateDbError(error) {
-  const message = error.code === '23514' || error.code === '23503'
+  const message = ['23514', '23503', '23505'].includes(error.code)
     ? CONSTRAINT_MESSAGES[error.constraint]
     : INVALID_VALUE_MESSAGES[error.code];
   return message ? gqlError(message, 'BAD_USER_INPUT') : error;
