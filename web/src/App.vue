@@ -146,6 +146,12 @@ async function signOut() {
     </div>
   </header>
 
+  <!-- 預設密碼是公開的：更改之前一直顯示，不像操作提示會自動消失 -->
+  <p v-if="currentUser?.usesDefaultPassword" class="warning-bar" role="alert">
+    這個帳號還在使用預設密碼，任何人都可以用它登入。
+    <button type="button" @click="openSettings">立刻更改密碼</button>
+  </p>
+
   <main id="main" tabindex="-1">
     <RouterView v-slot="{ Component, route: current }">
       <NotFound v-if="isDisabledRoute(current)" />

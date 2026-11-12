@@ -956,6 +956,30 @@ h2 {
   color: var(--on-accent);
 }
 
+.tag--warning {
+  color: var(--error);
+}
+
+/* 需要立刻處理的警告，排在頁首下方 */
+.warning-bar {
+  margin: 0;
+  padding: 0.5rem var(--content-right) 0.5rem var(--content-left);
+  background: var(--error);
+  color: var(--surface);
+  font-weight: 700;
+}
+
+.warning-bar button {
+  margin-left: 0.5rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
 .wordmark {
   display: flex;
   grid-area: brand;

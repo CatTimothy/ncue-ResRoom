@@ -37,22 +37,34 @@ export async function verifyPassword(password, stored) {
 /** 第一次啟動時自動建立的帳號。密碼是公開的，登入後要立刻更改 */
 export const DEFAULT_USER = { username: 'admin', password: 'admin123456789' };
 
-/**
- * 還沒有任何使用者時，建立預設帳號（有全部權限）。
- * 回傳 'created'（剛建立）、'unchanged'（預設帳號還在用預設密碼）或 null。
- */
+/** 還沒有任何使用者時，建立預設帳號（有全部權限）；回傳有沒有建立 */
 export async function ensureDefaultUser(db) {
-  const { username, password } = DEFAULT_USER;
-  if (!await db.prepare('SELECT 1 FROM users LIMIT 1').get()) {
-    // 兩個程序同時啟動時只有一個會新增
-    const { changes } = await db.prepare(`
-      INSERT INTO users (username, password_hash, permissions)
-      SELECT $1, $2, $3 WHERE NOT EXISTS (SELECT 1 FROM users)
-    `).run(username, await hashPassword(password), ALL_PERMISSIONS);
-    if (changes > 0) return 'created';
+  if (await db.prepare('SELECT 1 FROM users LIMIT 1').get()) return false;
+  // 兩個程序同時啟動時只有一個會新增
+  const { changes } = await db.prepare(`
+    INSERT INTO users (username, password_hash, permissions)
+    SELECT $1, $2, $3 WHERE NOT EXISTS (SELECT 1 FROM users)
+  `).run(DEFAULT_USER.username, await hashPassword(DEFAULT_USER.password), ALL_PERMISSIONS);
+  return changes > 0;
+}
+
+// 雜湊比對很慢，同一個雜湊只算一次；密碼更改後雜湊也會不同
+const defaultPasswordChecks = new Map();
+
+/** 這個密碼雜湊是不是預設密碼（任何帳號都算，不只預設帳號） */
+export function usesDefaultPassword(passwordHash) {
+  if (!defaultPasswordChecks.has(passwordHash)) {
+    if (defaultPasswordChecks.size >= 1000) defaultPasswordChecks.clear();
+    defaultPasswordChecks.set(passwordHash, verifyPassword(DEFAULT_USER.password, passwordHash));
   }
-  const user = await db.prepare('SELECT password_hash FROM users WHERE username = $1').get(username);
-  return user && await verifyPassword(password, user.passwordHash) ? 'unchanged' : null;
+  return defaultPasswordChecks.get(passwordHash);
+}
+
+/** 密碼還是預設密碼的帳號名稱，啟動時用來提醒 */
+export async function defaultPasswordUsers(db) {
+  const users = await db.prepare('SELECT username, password_hash FROM users ORDER BY username').all();
+  const flags = await Promise.all(users.map((user) => usesDefaultPassword(user.passwordHash)));
+  return users.filter((_, index) => flags[index]).map((user) => user.username);
 }
 
 /** 建立使用者（有全部權限）；已存在時重設密碼並登出其所有裝置，權限不變。供 CLI 使用。 */

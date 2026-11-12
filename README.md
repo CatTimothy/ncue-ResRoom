@@ -164,7 +164,7 @@ mutation { createUser(username: "editor", password: "...", permissions: [MANAGE_
 mutation { setUserPermissions(username: "editor", permissions: [MANAGE_ALBUMS]) { username permissions } }
 ```
 
-伺服器啟動時如果還沒有任何使用者，會自動建立預設帳號 `admin`，密碼 `admin123456789`，有全部權限（`src/lib/password.js` 的 `DEFAULT_USER`）。這組密碼是公開的，**請在第一次登入後立刻到「帳號設定」更改**；還沒更改前，每次啟動都會在終端機顯示警告。已經有使用者時不會建立，刪除 `admin` 也不會再出現。
+伺服器啟動時如果還沒有任何使用者，會自動建立預設帳號 `admin`，密碼 `admin123456789`，有全部權限（`src/lib/password.js` 的 `DEFAULT_USER`）。這組密碼是公開的，**請在第一次登入後立刻到「帳號設定」更改**。只要有帳號（不限 `admin`）的密碼是這組預設密碼：伺服器啟動時與該帳號登入時會在終端機顯示警告；該帳號登入後，頁首下方會一直顯示警告與更改密碼的按鈕；帳號管理的清單也會標示「使用預設密碼」（GraphQL 的 `User.usesDefaultPassword`）。已經有使用者時不會建立，刪除 `admin` 也不會再出現。
 
 忘記密碼時用 `npm run create-user -- <username>` 重設，既有帳號的權限不變；也可以用它新增帳號，用指令新增的帳號有全部權限。
 

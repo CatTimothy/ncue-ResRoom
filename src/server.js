@@ -1,6 +1,6 @@
 import { fileURLToPath } from 'node:url';
 import { createApp } from './app.js';
-import { DEFAULT_USER, ensureDefaultUser } from './lib/password.js';
+import { DEFAULT_USER, defaultPasswordUsers, ensureDefaultUser } from './lib/password.js';
 
 // 啟動時的檢查（資料庫、上傳資料夾的權限）失敗就直接結束，不要等到使用時才出錯
 const { server, db } = await createApp({
@@ -15,10 +15,10 @@ const { server, db } = await createApp({
   process.exit(1);
 });
 
-// 還沒有任何使用者時建立預設帳號；密碼是公開的，沒有更改前每次啟動都提醒
-const defaultUser = await ensureDefaultUser(db);
-if (defaultUser === 'created') console.warn(`已建立預設帳號 ${DEFAULT_USER.username}，密碼是 ${DEFAULT_USER.password}。請立刻登入並在「帳號設定」更改密碼。`);
-if (defaultUser === 'unchanged') console.warn(`警告：帳號 ${DEFAULT_USER.username} 還在使用預設密碼，請立刻登入並在「帳號設定」更改密碼。`);
+// 還沒有任何使用者時建立預設帳號；預設密碼是公開的，還有帳號在使用時每次啟動都提醒（登入時的提醒在 src/graphql/auth.js）
+if (await ensureDefaultUser(db)) console.warn(`已建立預設帳號 ${DEFAULT_USER.username}，密碼是 ${DEFAULT_USER.password}。`);
+const unsafeUsers = await defaultPasswordUsers(db);
+if (unsafeUsers.length) console.warn(`警告：以下帳號還在使用預設密碼，請立刻登入並在「帳號設定」更改：${unsafeUsers.join('、')}`);
 
 const port = Number(process.env.PORT) || 4000;
 server.listen(port, () => console.log(`網站：http://localhost:${port}/，GraphQL API：http://localhost:${port}/graphql`));

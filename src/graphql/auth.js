@@ -1,6 +1,6 @@
 import { fail, gqlError } from '../lib/errors.js';
 import { requirePermission, requireUser, withPermission } from '../lib/guards.js';
-import { checkPasswordStrength, hashPassword, MAX_PASSWORD_LENGTH, verifyPassword } from '../lib/password.js';
+import { checkPasswordStrength, hashPassword, MAX_PASSWORD_LENGTH, usesDefaultPassword, verifyPassword } from '../lib/password.js';
 import { ALL_PERMISSIONS } from '../lib/permissions.js';
 
 export const authTypeDefs = /* GraphQL */ `
@@ -11,6 +11,8 @@ export const authTypeDefs = /* GraphQL */ `
   type User {
     username: String!
     permissions: [Permission!]!
+    "密碼是公開的預設密碼（src/lib/password.js 的 DEFAULT_USER），應該立刻更改"
+    usesDefaultPassword: Boolean!
   }
 
   extend type Query {
@@ -57,11 +59,15 @@ export function createAuthResolvers({ db, sessions }) {
   }
 
   return {
+    User: {
+      usesDefaultPassword: (user) => usesDefaultPassword(user.passwordHash),
+    },
+
     Query: {
       me: (_, __, context) => context.user,
       users(_, __, context) {
         requirePermission(context, 'MANAGE_USERS');
-        return db.prepare('SELECT username, permissions FROM users ORDER BY username').all();
+        return db.prepare('SELECT * FROM users ORDER BY username').all();
       },
     },
 
@@ -81,6 +87,7 @@ export function createAuthResolvers({ db, sessions }) {
 
         attempts.delete(key);
         await sessions.start(user.username, context.res);
+        if (await usesDefaultPassword(user.passwordHash)) console.warn(`警告：帳號 ${user.username} 以預設密碼登入，請立刻更改密碼。`);
         return user;
       },
 
@@ -117,7 +124,7 @@ export function createAuthResolvers({ db, sessions }) {
           const user = await db.prepare(`
             INSERT INTO users (username, password_hash, permissions) VALUES ($1, $2, $3)
             ON CONFLICT (username) DO NOTHING
-            RETURNING username, permissions
+            RETURNING *
           `).get(username, await hashPassword(password), normalize(permissions));
           return user ?? fail(`帳號「${username}」已經存在`);
         },
@@ -129,7 +136,7 @@ export function createAuthResolvers({ db, sessions }) {
             UPDATE users SET permissions = $2 WHERE username = $1 AND EXISTS (
               SELECT 1 FROM users WHERE username = $3 AND 'MANAGE_USERS' = ANY (permissions) FOR SHARE
             )
-            RETURNING username, permissions
+            RETURNING *
           `).get(username, normalize(permissions), context.user.username);
           return user ?? fail(`找不到帳號「${username}」`);
         },

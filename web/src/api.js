@@ -332,7 +332,7 @@ export async function importSiteData(file, onProgress = () => {}) {
 }
 
 // 登入
-const USER_FIELDS = 'username permissions';
+const USER_FIELDS = 'username permissions usesDefaultPassword';
 
 export async function loadCurrentUser() {
   try {
@@ -358,10 +358,14 @@ export async function login(username, password) {
 // 帳號：不影響網站內容，所以不清除快取
 export const fetchUsers = () => query(`{ users { ${USER_FIELDS} } }`);
 
-export const changePassword = ({ currentPassword, newPassword }) => query(
-  'mutation ($currentPassword: String!, $newPassword: String!) { changePassword(currentPassword: $currentPassword, newPassword: $newPassword) }',
-  { currentPassword, newPassword },
-);
+export async function changePassword({ currentPassword, newPassword }) {
+  await query(
+    'mutation ($currentPassword: String!, $newPassword: String!) { changePassword(currentPassword: $currentPassword, newPassword: $newPassword) }',
+    { currentPassword, newPassword },
+  );
+  // 更新「還在使用預設密碼」的警告
+  currentUser.value = await query(`{ me { ${USER_FIELDS} } }`);
+}
 
 export const createUser = ({ username, password, permissions }) => query(
   `mutation ($username: String!, $password: String!, $permissions: [Permission!]!) {

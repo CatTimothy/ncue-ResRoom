@@ -37,7 +37,8 @@ async function reloadWith(message) {
     <ul v-if="users" class="document-list">
       <li v-for="user in users" :key="user.username">
         <div>
-          {{ user.username }}<template v-if="user.username === currentUser?.username">（你）</template><br />
+          {{ user.username }}<template v-if="user.username === currentUser?.username">（你）</template>
+          <span v-if="user.usesDefaultPassword" class="tag tag--warning">使用預設密碼</span><br />
           <small>{{ permissionsText(user.permissions) }}</small>
         </div>
         <button
