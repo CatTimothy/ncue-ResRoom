@@ -53,7 +53,7 @@ API 不在 `http://localhost:4000` 時，啟動前請設定 `API_URL`。
 
 ### 管理內容
 
-按頁首右上角的「登入」會在目前的頁面上開啟登入視窗（舊的 `/login` 網址會回到首頁並開啟視窗），登入後留在原本的頁面。登入後，公告、相簿、照片、文件和頁面都會出現新增、編輯、刪除按鈕。公告和頁面按編輯後，會在原頁面直接切換成編輯模式（網址加上 `?edit=1`，新增時是 `?new=1`）；相簿、照片和文件則用視窗編輯。上傳照片時每張都有自己的說明，預設為檔名；之後在燈箱點說明文字就能直接修改。公告和頁面內文的圖片也一樣（需要該內容的權限），修改時會改寫內文裡的圖片語法；用 HTML 寫的頁面要到編輯畫面改。日期一律以民國輸入，例如 `115/11/04 15:20`。頁面的總覽在「所有頁面」（`/pages`），最上方是頁首選單（需要 `MANAGE_SITE_CONFIG`），下方列出網站功能（首頁、最新消息、活動剪影、文件下載）與所有頁面。有 `MANAGE_PAGES` 權限時，頁首會出現「新增頁面」按鈕。頁面網址的輸入框寫 `test` 會放在 `/pages/test`，開頭加上 `/`（例如 `/test`）會直接放在網站第一層（`pages.root`）；放在第一層時不能用 `announcements`、`photos`、`documents`、`pages`、`settings` 等網站已經用掉的網址（`web/src/navigation.js` 的 `RESERVED_SLUGS`）。編輯頁面時也可以修改網址，頁首選單會跟著改，但其他內容裡連到舊網址的連結不會改。新增的頁面會自動加到主選單的最後，不想放在選單上時，到頁首選單拖到「未加入」。頁面會記錄建立時間（`created_at`）與最後修改時間。有 `MANAGE_SITE_CONFIG` 權限時，頁首會出現「網站設定」（`/settings`，頁尾的「編輯頁尾」也連到這裡），可以修改：網站標題（瀏覽器分頁的標題）、標誌、網站圖示（favicon）、標誌旁的名稱、首頁的標題與主視覺圖片、頁尾的聯絡資訊（標題、電話、分機、開放時間、聯絡老師），以及主題。頁首選單（連結可以是頁面或首頁、最新消息、活動剪影、文件下載，存在 `navigation_links` 資料表）在「所有頁面」編輯。圖片透過 `uploadContentImage` 上傳，按「使用內建圖片」會改回 `web/public` 裡的圖片。Copyright 固定為 CatTimothy（寫在 `web/src/components/SiteFooter.vue`），年份和今日訪問人數由系統產生。帳號用 `npm run create-user -- <username>` 建立。
+按頁首右上角的「登入」會在目前的頁面上開啟登入視窗（舊的 `/login` 網址會回到首頁並開啟視窗），登入後留在原本的頁面。登入後，公告、相簿、照片、文件和頁面都會出現新增、編輯、刪除按鈕。公告和頁面按編輯後，會在原頁面直接切換成編輯模式（網址加上 `?edit=1`，新增時是 `?new=1`）；相簿、照片和文件則用視窗編輯。上傳照片時每張都有自己的說明，預設為檔名；之後在燈箱點說明文字就能直接修改。公告和頁面內文的圖片也一樣（需要該內容的權限），修改時會改寫內文裡的圖片語法；用 HTML 寫的頁面要到編輯畫面改。日期一律以民國輸入，例如 `115/11/04 15:20`。頁面的總覽在「所有頁面」（`/pages`），最上方是頁首選單（需要 `MANAGE_SITE_CONFIG`），下方列出網站功能（首頁、最新消息、活動剪影、文件下載）與所有頁面。有 `MANAGE_PAGES` 權限時，頁首會出現「新增頁面」按鈕。頁面網址的輸入框寫 `test` 會放在 `/pages/test`，開頭加上 `/`（例如 `/test`）會直接放在網站第一層（`pages.root`）；放在第一層時不能用 `announcements`、`photos`、`documents`、`pages`、`settings` 等網站已經用掉的網址（`web/src/navigation.js` 的 `RESERVED_SLUGS`）。編輯頁面時也可以修改網址，頁首選單會跟著改，但其他內容裡連到舊網址的連結不會改。新增的頁面會自動加到主選單的最後，不想放在選單上時，到頁首選單拖到「未加入」。頁面會記錄建立時間（`created_at`）、最後修改時間與最後編輯的帳號；頁面最下方顯示「最後編輯於…，編輯者：…」，編輯者是那個帳號的顯示名稱，沒有設定顯示名稱時只顯示時間（見「登入」）。有 `MANAGE_SITE_CONFIG` 權限時，頁首會出現「網站設定」（`/settings`，頁尾的「編輯頁尾」也連到這裡），可以修改：網站標題（瀏覽器分頁的標題）、標誌、網站圖示（favicon）、標誌旁的名稱、首頁的標題與主視覺圖片、頁尾的聯絡資訊（標題、電話、分機、開放時間、聯絡老師），以及主題。頁首選單（連結可以是頁面或首頁、最新消息、活動剪影、文件下載，存在 `navigation_links` 資料表）在「所有頁面」編輯。圖片透過 `uploadContentImage` 上傳，按「使用內建圖片」會改回 `web/public` 裡的圖片。Copyright 固定為 CatTimothy（寫在 `web/src/components/SiteFooter.vue`），年份和今日訪問人數由系統產生。帳號用 `npm run create-user -- <username>` 建立。
 
 公告和頁面使用像文書處理器的文字編輯器（Tiptap，`web/src/components/RichTextEditor.vue`，只在管理員開啟時下載）：直接看到排版後的樣子，工具列有段落樣式（內文、標題）、粗體、斜體、刪除線、連結、項目符號、編號、引言、分隔線、圖片、文件與表格。存檔仍是 Markdown，格式定義在 `web/src/richText.js`；只提供 Markdown 寫得出來、網站也會顯示的格式，所以沒有底線、文字顏色與對齊。頁面也可以在編輯畫面改選 HTML，改用純文字的輸入框（切換格式不會轉換已輸入的內容）。工具列的「圖片」、把圖片拖進內容區或貼上，都會自動上傳並插入圖片。有 `MANAGE_DOCUMENTS` 權限且文件下載功能啟用時，工具列還有「文件」，也可以把文件拖進內容區（拖曳時游標會標示插入的位置）：文件會透過 `uploadDocument` 上傳並插入下載連結，同時列在「文件下載」頁；在該頁刪除文件後，內容裡的連結會失效。沒有任何公告、頁面或網站設定引用（`schema.sql` 的 `image_references`）、且超過 1 天的圖片，會在下次上傳內文圖片時清除。
 
@@ -68,7 +68,7 @@ site-config.json            網站設定，欄位名稱同 GraphQL；"images": {
 navigation.json             頁首選單 { "utility": [{ "service": "HOME" }, { "page": "map" }], "main": [...] }
 visits.json                 每日訪問人數
 extensions.json             擴充功能的啟用狀態 { "PHOTOS": false }；沒有列出的視為啟用
-pages/<slug>.md 或 .html     頁面；開頭的 front matter 寫 title、path（/about 在第一層，沒寫或 /pages/about 在 /pages 底下）、createdAt
+pages/<slug>.md 或 .html     頁面；開頭的 front matter 寫 title、path（/about 在第一層，沒寫或 /pages/about 在 /pages 底下）、createdAt、updatedBy
 announcements/<名稱>.md      公告；front matter 寫 title、publishedAt、unit、deadline、contactPerson、extension 等
 albums/<資料夾>/             一本相簿；album.json 寫 name、eventDate 和每張照片的說明（沒寫的用檔名）
 documents/<分類>/<檔名>      文件；資料夾就是分類，標題預設是檔名。documents.json 可以另外寫標題與分類
@@ -86,7 +86,7 @@ title: 資源教室簡介
 內文……
 ```
 
-- 帳號、密碼與登入狀態不包含在內。
+- 帳號、密碼與登入狀態不包含在內。頁面的 `updatedBy` 是最後編輯的帳號，匯入的網站沒有同名的帳號時不會記錄。
 - 匯入時先把圖片與文件寫進上傳資料夾，再用 `schema.sql` 的 `import_site()` 一次取代資料庫裡的資料；任何一步失敗，網站都維持原狀。成功後，原本的照片與文件檔案會被刪除。公告與相簿寫了 `id` 時沿用，網址不會改變。
 - 瀏覽器會先讀出 ZIP 的檔案清單，顯示各類內容的數量，請管理員確認後才上傳（`web/src/siteData.js`、`web/src/zipIndex.js`）。上傳的 ZIP 會先存成暫存檔，所以要有足夠的磁碟空間；反向代理也要放寬請求大小與逾時限制。
 - `npm run seed-content` 讀的也是這個格式，但只會補上沒有的內容，不會取代。
@@ -144,11 +144,14 @@ title: 資源教室簡介
 | `MANAGE_DOCUMENTS` | 管理文件 |
 | `MANAGE_PAGES` | 管理頁面 |
 | `MANAGE_SITE_CONFIG` | 網站設定（標題、圖片、首頁文字、頁尾、主題） |
-| `MANAGE_USERS` | 查看帳號清單、新增帳號、變更其他帳號的權限 |
+| `MANAGE_USERS` | 查看帳號清單、新增與刪除帳號、變更其他帳號的權限與顯示名稱 |
 
 內文圖片的上傳需要 `MANAGE_ANNOUNCEMENTS`、`MANAGE_PAGES` 或 `MANAGE_SITE_CONFIG`。沒有權限時，畫面上不會顯示對應的按鈕，伺服器也會拒絕操作（錯誤代碼 `FORBIDDEN`）。
 
-每個人都可以按頁首的「帳號設定」更改自己的密碼；有 `MANAGE_USERS` 的人還會在同一個視窗看到帳號管理。
+每個人都可以按頁首的「帳號設定」更改自己的顯示名稱與密碼；有 `MANAGE_USERS` 的人還會在同一個視窗看到帳號管理，可以新增帳號、編輯其他帳號的顯示名稱與權限，或刪除其他帳號。
+
+- 顯示名稱（最多 50 字元）會公開顯示在這個帳號最後編輯的頁面下方，也顯示在頁首的帳號選單；留空就不顯示。登入用的帳號不會公開。
+- 刪除帳號後，對方會立刻被登出；對方編輯過的內容都保留，頁面下方不再顯示編輯者。不能刪除自己，所以至少會留下一位可以管理帳號的人。
 
 要新增權限時，依 `src/lib/permissions.js` 開頭的步驟修改。
 
@@ -162,6 +165,11 @@ mutation { changePassword(currentPassword: "...", newPassword: "...") }
 query { users { username permissions } }
 mutation { createUser(username: "editor", password: "...", permissions: [MANAGE_ANNOUNCEMENTS, MANAGE_PAGES]) { username permissions } }
 mutation { setUserPermissions(username: "editor", permissions: [MANAGE_ALBUMS]) { username permissions } }
+mutation { deleteUser(username: "editor") }
+
+# 顯示名稱：改自己的不需要權限，改別人的（加上 username）需要 MANAGE_USERS
+mutation { setDisplayName(displayName: "王老師") { username displayName } }
+query { page(slug: "about") { updatedAt updatedBy } }   # updatedBy 是顯示名稱，沒有時為 null
 ```
 
 伺服器啟動時如果還沒有任何使用者，會自動建立預設帳號 `admin`，密碼 `admin123456789`，有全部權限（`src/lib/password.js` 的 `DEFAULT_USER`）。這組密碼是公開的，**請在第一次登入後立刻到「帳號設定」更改**。只要有帳號（不限 `admin`）的密碼是這組預設密碼：伺服器啟動時與該帳號登入時會在終端機顯示警告；該帳號登入後，頁首下方會一直顯示警告與更改密碼的按鈕；帳號管理的清單也會標示「使用預設密碼」（GraphQL 的 `User.usesDefaultPassword`）。已經有使用者時不會建立，刪除 `admin` 也不會再出現。

@@ -76,7 +76,7 @@ export async function exportSiteFiles({ db, storage }) {
   for (const page of tables.pages) {
     entries.push({
       name: unique(`pages/${page.slug}.${page.format === 'HTML' ? 'html' : 'md'}`),
-      data: Buffer.from(stringifyFrontMatter({ title: page.title, path: pagePath(page), createdAt: page.created_at, updatedAt: page.updated_at }, await withPlaceholders(page.source))),
+      data: Buffer.from(stringifyFrontMatter({ title: page.title, path: pagePath(page), createdAt: page.created_at, updatedAt: page.updated_at, ...(page.updated_by && { updatedBy: page.updated_by }) }, await withPlaceholders(page.source))),
     });
   }
 

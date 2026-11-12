@@ -75,12 +75,15 @@ export async function importSite({ db, storage, source }) {
       return documentUrls.get(path) ?? fail(`內容引用的文件「documents/${path}」不存在`);
     };
 
+    // 最後編輯的帳號：帳號不在匯出的資料裡，這個網站沒有同名的帳號時就不記錄
+    const usernames = new Set((await db.prepare('SELECT username FROM users').all()).map((user) => user.username));
     const pages = [];
     for (const page of site.pages) {
       pages.push({
         slug: page.slug, root: page.root, title: page.title, format: page.format, source: await replacePlaceholders(page.source, resolve),
         ...(page.createdAt && { created_at: page.createdAt }),
         ...(page.updatedAt && { updated_at: page.updatedAt }),
+        ...(usernames.has(page.updatedBy) && { updated_by: page.updatedBy }),
       });
     }
 

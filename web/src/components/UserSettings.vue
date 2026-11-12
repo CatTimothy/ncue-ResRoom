@@ -2,6 +2,7 @@
 import { nextTick, ref, useId, useTemplateRef } from 'vue';
 import { can } from '../api.js';
 import ChangePasswordForm from './ChangePasswordForm.vue';
+import DisplayNameForm from './DisplayNameForm.vue';
 import UserManager from './UserManager.vue';
 
 const titleId = useId();
@@ -25,6 +26,7 @@ defineExpose({ open });
         <h2 :id="titleId">帳號設定</h2>
         <button type="button" class="button button--small button--quiet" @click="dialog.close()">關閉</button>
       </div>
+      <DisplayNameForm />
       <ChangePasswordForm />
       <UserManager v-if="can('MANAGE_USERS')" />
     </template>

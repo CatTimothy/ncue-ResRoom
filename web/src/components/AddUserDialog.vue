@@ -10,6 +10,7 @@ const emit = defineEmits(['created']);
 // 預設可以編輯所有內容；管理帳號要另外勾選
 const empty = () => ({
   username: '',
+  displayName: '',
   password: '',
   permissions: Object.keys(PERMISSIONS).filter((permission) => permission !== 'MANAGE_USERS'),
 });
@@ -41,6 +42,11 @@ defineExpose({ open });
       <span>帳號</span>
       <input v-model="form.username" required minlength="3" maxlength="50" pattern="[A-Za-z0-9._\-]+" autocomplete="off" />
       <small>3 到 50 個英數字、點、底線或連字號。</small>
+    </label>
+    <label class="field">
+      <span>顯示名稱（選填）</span>
+      <input v-model="form.displayName" maxlength="50" autocomplete="off" />
+      <small>公開顯示在對方編輯過的頁面下方，對方可以自己修改。</small>
     </label>
     <label class="field">
       <span>初始密碼</span>

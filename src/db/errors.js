@@ -7,6 +7,7 @@ const CONSTRAINT_MESSAGES = {
   image_path_check: '圖片網址必須是上傳後取得的網址',
   theme_colors_check: '主題顏色必須是 #rrggbb 格式',
   users_username_check: 'username 須為 3 到 50 個英數字、點、底線或連字號',
+  users_display_name_check: '顯示名稱不可超過 50 字元',
   pages_pkey: '這個網址已經有頁面了，請換一個',
   pages_slug_check: 'slug 僅可使用小寫英數字與連字號，且不可超過 100 字元',
   announcements_unit_check: '公告單位不可超過 100 字元',

@@ -83,7 +83,7 @@ async function signOut() {
             <circle cx="12" cy="8" r="4" />
             <path d="M4 21a8 8 0 0 1 16 0" />
           </svg>
-          <span class="account-toggle__name">{{ currentUser.username }}</span>
+          <span class="account-toggle__name">{{ currentUser.displayName || currentUser.username }}</span>
           <svg class="icon icon--small" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
         </button>
         <ul v-show="accountOpen" id="account-menu" class="dropdown__menu" aria-label="帳號選單">

@@ -93,6 +93,10 @@ BEGIN
   END IF;
 END $$;
 
+-- 顯示名稱：公開顯示在這個帳號編輯過的頁面下方；空字串表示沒有設定，不顯示
+ALTER TABLE users ADD COLUMN IF NOT EXISTS display_name TEXT NOT NULL DEFAULT ''
+  CONSTRAINT users_display_name_check CHECK (char_length(display_name) <= 50);
+
 CREATE TABLE IF NOT EXISTS sessions (
   token_hash BYTEA PRIMARY KEY,
   username   TEXT NOT NULL REFERENCES users (username) ON DELETE CASCADE,
@@ -132,6 +136,9 @@ BEGIN
       ALTER COLUMN created_at SET DEFAULT now();
   END IF;
 END $$;
+
+-- 最後編輯頁面的帳號；不知道是誰（舊的頁面、seed、匯入時帳號不存在）或帳號已刪除時是 NULL
+ALTER TABLE pages ADD COLUMN IF NOT EXISTS updated_by TEXT REFERENCES users (username) ON DELETE SET NULL ON UPDATE CASCADE;
 
 CREATE TABLE IF NOT EXISTS announcements (
   id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -533,6 +540,7 @@ DECLARE
   t RECORD;
 BEGIN
   FOR t IN SELECT * FROM (VALUES
+    ('users', ARRAY['display_name']),
     ('pages', ARRAY['title']),
     ('announcements', ARRAY['title', 'unit', 'contact_person', 'extension']),
     ('albums', ARRAY['name']),

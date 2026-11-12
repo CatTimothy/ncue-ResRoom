@@ -10,6 +10,8 @@ export const authTypeDefs = /* GraphQL */ `
 
   type User {
     username: String!
+    "公開顯示在這個帳號編輯過的頁面下方；沒有設定時是空字串"
+    displayName: String!
     permissions: [Permission!]!
     "密碼是公開的預設密碼（src/lib/password.js 的 DEFAULT_USER），應該立刻更改"
     usesDefaultPassword: Boolean!
@@ -28,9 +30,13 @@ export const authTypeDefs = /* GraphQL */ `
     "更改自己的密碼並登出所有裝置，目前的裝置會換一個新的登入狀態"
     changePassword(currentPassword: String!, newPassword: String!): Boolean!
     "需要 MANAGE_USERS。帳號已存在時會失敗，不會覆蓋"
-    createUser(username: String!, password: String!, permissions: [Permission!]!): User!
+    createUser(username: String!, password: String!, permissions: [Permission!]!, displayName: String = ""): User!
+    "更改顯示名稱（最多 50 字元，空字串表示不顯示）。沒有指定 username 時改自己的；改別人的需要 MANAGE_USERS"
+    setDisplayName(displayName: String!, username: String): User!
     "需要 MANAGE_USERS，不能變更自己的權限，所以至少會留下一位可以管理帳號的人"
     setUserPermissions(username: String!, permissions: [Permission!]!): User!
+    "需要 MANAGE_USERS，不能刪除自己。對方會立刻被登出；對方編輯過的頁面保留，但不再顯示編輯者"
+    deleteUser(username: String!): Boolean!
   }
 `;
 
@@ -118,14 +124,21 @@ export function createAuthResolvers({ db, sessions }) {
         return true;
       },
 
+      async setDisplayName(_, { displayName, username }, context) {
+        const own = requireUser(context).username;
+        if (username != null && username !== own) requirePermission(context, 'MANAGE_USERS');
+        const user = await db.prepare('UPDATE users SET display_name = $2 WHERE username = $1 RETURNING *').get(username ?? own, displayName);
+        return user ?? fail(`找不到帳號「${username}」`);
+      },
+
       ...withPermission('MANAGE_USERS', {
-        async createUser(_, { username, password, permissions }) {
+        async createUser(_, { username, password, permissions, displayName }) {
           checkPasswordStrength(password);
           const user = await db.prepare(`
-            INSERT INTO users (username, password_hash, permissions) VALUES ($1, $2, $3)
+            INSERT INTO users (username, password_hash, permissions, display_name) VALUES ($1, $2, $3, $4)
             ON CONFLICT (username) DO NOTHING
             RETURNING *
-          `).get(username, await hashPassword(password), normalize(permissions));
+          `).get(username, await hashPassword(password), normalize(permissions), displayName ?? '');
           return user ?? fail(`帳號「${username}」已經存在`);
         },
 
@@ -139,6 +152,17 @@ export function createAuthResolvers({ db, sessions }) {
             RETURNING *
           `).get(username, normalize(permissions), context.user.username);
           return user ?? fail(`找不到帳號「${username}」`);
+        },
+
+        async deleteUser(_, { username }, context) {
+          if (username === context.user.username) fail('不能刪除自己的帳號');
+          // 和 setUserPermissions 一樣鎖住操作者：兩個人同時刪除對方時，只有一個會成功
+          const { changes } = await db.prepare(`
+            DELETE FROM users WHERE username = $1 AND EXISTS (
+              SELECT 1 FROM users WHERE username = $2 AND 'MANAGE_USERS' = ANY (permissions) FOR SHARE
+            )
+          `).run(username, context.user.username);
+          return changes > 0 || fail(`找不到帳號「${username}」`);
         },
       }),
     },

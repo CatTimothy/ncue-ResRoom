@@ -33,7 +33,7 @@ export async function readSite(source) {
     // front matter 的 path 決定網址（/about 在第一層，/pages/about 或沒寫在 /pages 底下）；沒寫時 slug 是檔名
     const url = data.path ? parsePageUrl(String(data.path)) : { slug: match[1], root: false };
     if (!url) fail(`「${path}」的 path 格式不正確`);
-    pages.push({ ...url, title: String(data.title ?? url.slug), format, source: body, createdAt: data.createdAt ?? null, updatedAt: data.updatedAt ?? null });
+    pages.push({ ...url, title: String(data.title ?? url.slug), format, source: body, createdAt: data.createdAt ?? null, updatedAt: data.updatedAt ?? null, updatedBy: data.updatedBy ?? null });
   }
 
   const announcements = [];

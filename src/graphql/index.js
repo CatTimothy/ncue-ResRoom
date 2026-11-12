@@ -21,9 +21,10 @@ const rootTypeDefs = /* GraphQL */ `
   type Mutation
 `;
 
-// 不會改變公開內容的 mutation；其他 mutation 執行後呼叫 onContentChange（重新產生沒有 JavaScript 時的頁面）
+// 不會改變公開內容的 mutation；其他 mutation 執行後呼叫 onContentChange（重新產生沒有 JavaScript 時的頁面）。
+// 頁面的編輯者（顯示名稱）只顯示在有 JavaScript 的畫面，所以帳號的 mutation 都算在這裡
 const NON_CONTENT_MUTATIONS = new Set([
-  'login', 'logout', 'changePassword', 'createUser', 'setUserPermissions', 'recordVisit',
+  'login', 'logout', 'changePassword', 'createUser', 'setUserPermissions', 'setDisplayName', 'deleteUser', 'recordVisit',
   ...EXTENSIONS.flatMap((extension) => extension.passiveMutations ?? []),
 ]);
 

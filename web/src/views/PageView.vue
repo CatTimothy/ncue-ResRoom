@@ -92,7 +92,7 @@ const remove = () => confirmDelete(
         :save-image-alt="can('MANAGE_PAGES') && item.format === 'MARKDOWN' ? saveImageAlt : null"
       />
       <small v-if="status === 'ready'" class="edited page-dates">
-        最後編輯於 {{ rocDateTimeText(item.updatedAt) }}
+        最後編輯於 {{ rocDateTimeText(item.updatedAt) }}<template v-if="item.updatedBy">，編輯者：{{ item.updatedBy }}</template>
       </small>
     </template>
   </div>

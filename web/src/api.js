@@ -238,7 +238,7 @@ export const deletePhoto = deleter('deletePhoto', '照片已刪除');
 
 // 頁面
 export const fetchPages = () => query('{ pages { slug title root createdAt updatedAt } }');
-export const fetchPage = (slug) => query('query ($slug: String!) { page(slug: $slug) { slug root title format html updatedAt } }', { slug });
+export const fetchPage = (slug) => query('query ($slug: String!) { page(slug: $slug) { slug root title format html updatedAt updatedBy } }', { slug });
 export const fetchPageSource = (slug) => query('query ($slug: String!) { page(slug: $slug) { slug root title format source } }', { slug });
 
 /**
@@ -332,7 +332,7 @@ export async function importSiteData(file, onProgress = () => {}) {
 }
 
 // 登入
-const USER_FIELDS = 'username permissions usesDefaultPassword';
+const USER_FIELDS = 'username displayName permissions usesDefaultPassword';
 
 export async function loadCurrentUser() {
   try {
@@ -367,12 +367,24 @@ export async function changePassword({ currentPassword, newPassword }) {
   currentUser.value = await query(`{ me { ${USER_FIELDS} } }`);
 }
 
-export const createUser = ({ username, password, permissions }) => query(
-  `mutation ($username: String!, $password: String!, $permissions: [Permission!]!) {
-    createUser(username: $username, password: $password, permissions: $permissions) { ${USER_FIELDS} }
+export const createUser = ({ username, displayName, password, permissions }) => query(
+  `mutation ($username: String!, $displayName: String, $password: String!, $permissions: [Permission!]!) {
+    createUser(username: $username, displayName: $displayName, password: $password, permissions: $permissions) { ${USER_FIELDS} }
   }`,
-  { username, password, permissions },
+  { username, displayName, password, permissions },
 );
+
+/** 更改顯示名稱；沒有 username 時改自己的。頁面下方的「最後編輯」會跟著變，所以要清除快取 */
+export async function setDisplayName(displayName, username = null) {
+  const user = await mutate(
+    `mutation ($displayName: String!, $username: String) {
+      setDisplayName(displayName: $displayName, username: $username) { ${USER_FIELDS} }
+    }`,
+    { displayName, username },
+  );
+  if (user.username === currentUser.value?.username) currentUser.value = user;
+  return user;
+}
 
 export const setUserPermissions = (username, permissions) => query(
   `mutation ($username: String!, $permissions: [Permission!]!) {
@@ -380,6 +392,9 @@ export const setUserPermissions = (username, permissions) => query(
   }`,
   { username, permissions },
 );
+
+/** 對方編輯過的頁面不再顯示編輯者，所以要清除快取 */
+export const deleteUser = (username) => mutate('mutation ($username: String!) { deleteUser(username: $username) }', { username });
 
 export async function logout() {
   await query('mutation { logout }');

@@ -19,6 +19,8 @@ export const pagesTypeDefs = /* GraphQL */ `
     html: String!
     createdAt: String!
     updatedAt: String!
+    "最後編輯的帳號的顯示名稱；不知道是誰，或對方沒有設定顯示名稱時為 null"
+    updatedBy: String
   }
 
   extend type Query {
@@ -57,27 +59,28 @@ export function createPagesResolvers({ db }) {
     },
 
     Mutation: withPermission('MANAGE_PAGES', {
-      async savePage(_, { slug, title, root, previousSlug, ...input }) {
+      async savePage(_, { slug, title, root, previousSlug, ...input }, context) {
+        const { username } = context.user;
         if (root && RESERVED_SLUGS.includes(slug)) fail(`網址「/${slug}」已經用於網站功能，請換一個`);
         const { format, source } = await pageSource(input);
 
         // 修改網址：選單裡的連結由外鍵的 ON UPDATE CASCADE 跟著改
         if (previousSlug != null && previousSlug !== slug) {
           const renamed = await db.prepare(`
-            UPDATE pages SET slug = $1, root = $2, title = $3, format = $4, source = $5, updated_at = now()
+            UPDATE pages SET slug = $1, root = $2, title = $3, format = $4, source = $5, updated_at = now(), updated_by = $7
             WHERE slug = $6 RETURNING *
-          `).get(slug, root, title, format, source, previousSlug);
+          `).get(slug, root, title, format, source, previousSlug, username);
           return renamed ?? fail('找不到要修改的頁面，可能已被刪除');
         }
 
         // xmax = 0 表示這次是新增，不是覆蓋既有的頁面
         const page = await db.prepare(`
-          INSERT INTO pages (slug, root, title, format, source) VALUES ($1, $2, $3, $4, $5)
+          INSERT INTO pages (slug, root, title, format, source, updated_by) VALUES ($1, $2, $3, $4, $5, $6)
           ON CONFLICT (slug) DO UPDATE SET
             root = excluded.root, title = excluded.title, format = excluded.format,
-            source = excluded.source, updated_at = now()
+            source = excluded.source, updated_at = now(), updated_by = excluded.updated_by
           RETURNING *, (xmax = 0) AS inserted
-        `).get(slug, root, title, format, source);
+        `).get(slug, root, title, format, source, username);
         if (page.inserted) {
           await db.prepare(`
             INSERT INTO navigation_links (menu, position, page_slug)
@@ -97,6 +100,12 @@ export function createPagesResolvers({ db }) {
     Page: {
       path: pagePath,
       html: renderPage,
+      // 只公開顯示名稱，不公開登入用的帳號
+      async updatedBy(page) {
+        if (!page.updatedBy) return null;
+        const user = await db.prepare('SELECT display_name FROM users WHERE username = $1').get(page.updatedBy);
+        return user?.displayName || null;
+      },
       source(page, _args, context) {
         requirePermission(context, 'MANAGE_PAGES');
         return page.source;

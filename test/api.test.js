@@ -180,6 +180,8 @@ test('every mutation except login, logout and the view counters requires a sessi
     'mutation { deleteDocument(id: 1) }',
     'mutation { deleteDocuments(ids: [1]) }',
     'mutation { setDocumentsCategory(ids: [1], category: "a") }',
+    'mutation { setDisplayName(displayName: "a") { username } }',
+    'mutation { deleteUser(username: "admin") }',
   ];
   for (const query of blocked) {
     for (const headers of [{}, { Cookie: 'session=forged' }]) {
@@ -231,12 +233,77 @@ test('the default account is only created when there are no users, and is report
   }
 });
 
+const SET_DISPLAY_NAME = 'mutation ($n: String!, $u: String) { setDisplayName(displayName: $n, username: $u) { username displayName } }';
+const DELETE_USER = 'mutation ($u: String!) { deleteUser(username: $u) }';
+
+test('display names can be set by the account itself or by user managers, and are trimmed', async () => {
+  const editor = await loginWith('name.editor', ['MANAGE_PAGES']);
+  assert.equal((await gql('{ me { displayName } }', {}, editor)).data.me.displayName, '');
+
+  const own = await gql(SET_DISPLAY_NAME, { n: '  王老師  ' }, editor);
+  assert.deepEqual(own.data.setDisplayName, { username: 'name.editor', displayName: '王老師' });
+  assert.equal((await gql('{ me { displayName } }', {}, editor)).data.me.displayName, '王老師');
+
+  // 改別人的需要 MANAGE_USERS
+  assert.equal((await gql(SET_DISPLAY_NAME, { n: 'x', u: USER.username }, editor)).errors[0].extensions.code, 'FORBIDDEN');
+  assert.deepEqual((await gql(SET_DISPLAY_NAME, { n: '李主任', u: 'name.editor' })).data.setDisplayName, { username: 'name.editor', displayName: '李主任' });
+  assert.match((await gql(SET_DISPLAY_NAME, { n: 'x', u: 'nobody.here' })).errors[0].message, /找不到/);
+  assert.match((await gql(SET_DISPLAY_NAME, { n: 'a'.repeat(51) }, editor)).errors[0].message, /50/);
+
+  const created = await gql(CREATE_USER.replace('$r)', '$r, displayName: "新同事")').replace('permissions }', 'displayName }'), { u: 'name.created', p: PASSWORD, r: [] });
+  assert.deepEqual(created.data.createUser, { username: 'name.created', displayName: '新同事' });
+  const { users } = (await gql('{ users { username displayName } }')).data;
+  assert.equal(users.find((u) => u.username === 'name.editor').displayName, '李主任');
+});
+
+test('pages show the display name of whoever edited them last, never the username', async () => {
+  const PAGE = '{ page(slug: "edited-by") { updatedBy } }';
+  const save = (title, headers) => gql(SAVE_PAGE.replace('html }', 'html updatedBy }'), { slug: 'edited-by', title, content: 'c', format: 'MARKDOWN' }, headers);
+  const editor = await loginWith('page.editor', ['MANAGE_PAGES']);
+
+  // 沒有設定顯示名稱時不顯示，也不會公開帳號
+  assert.equal((await save('一', editor)).data.savePage.updatedBy, null);
+  assert.equal((await gql(PAGE, {}, {})).data.page.updatedBy, null);
+
+  await gql(SET_DISPLAY_NAME, { n: '陳老師' }, editor);
+  assert.equal((await gql(PAGE, {}, {})).data.page.updatedBy, '陳老師', '不用登入也看得到，改名後立刻更新');
+
+  // 換另一個人編輯，包含修改網址
+  await gql(SET_DISPLAY_NAME, { n: '管理員' });
+  assert.equal((await save('二')).data.savePage.updatedBy, '管理員');
+  const renamed = await gql(SAVE_PAGE.replace('html }', 'html updatedBy }'), { slug: 'edited-by-2', previousSlug: 'edited-by', title: '三', content: 'c', format: 'MARKDOWN' }, editor);
+  assert.equal(renamed.data.savePage.updatedBy, '陳老師');
+  assert.equal((await gql('{ pages { slug updatedBy } }', {}, {})).data.pages.find((p) => p.slug === 'edited-by-2').updatedBy, '陳老師');
+
+  // 刪除帳號後頁面保留，但不再顯示編輯者
+  assert.equal((await gql(DELETE_USER, { u: 'page.editor' })).data.deleteUser, true);
+  const page = (await gql('{ page(slug: "edited-by-2") { title updatedBy } }', {}, {})).data.page;
+  assert.deepEqual(page, { title: '三', updatedBy: null });
+
+  await gql('mutation { deletePage(slug: "edited-by-2") }');
+  await gql(SET_DISPLAY_NAME, { n: '' });
+});
+
+test('user managers can delete other accounts, which signs them out', async () => {
+  const victim = await loginWith('to.delete', ['MANAGE_PAGES']);
+  assert.equal((await gql(DELETE_USER, { u: 'to.delete' }, victim)).errors[0].extensions.code, 'FORBIDDEN');
+  assert.match((await gql(DELETE_USER, { u: USER.username })).errors[0].message, /自己/);
+  assert.match((await gql(DELETE_USER, { u: 'nobody.here' })).errors[0].message, /找不到/);
+
+  assert.equal((await gql(DELETE_USER, { u: 'to.delete' })).data.deleteUser, true);
+  assert.equal((await gql('{ me { username } }', {}, victim)).data.me, null);
+  assert.ok((await login('to.delete', PASSWORD)).errors);
+  const { users } = (await gql('{ users { username } }')).data;
+  assert.ok(!users.some((u) => u.username === 'to.delete'));
+  assert.ok(users.some((u) => u.username === USER.username));
+});
+
 test('users never expose the password hash', async () => {
   assert.ok((await gql('{ me { passwordHash } }')).errors);
   const columns = await app.db.prepare(`
     SELECT column_name FROM information_schema.columns WHERE table_name = 'users' ORDER BY ordinal_position
   `).all();
-  assert.deepEqual(columns.map((c) => c.columnName), ['username', 'password_hash', 'permissions']);
+  assert.deepEqual(columns.map((c) => c.columnName), ['username', 'password_hash', 'permissions', 'display_name']);
 });
 
 const SAVE_CONFIG_FROM_CURRENT = 'mutation { saveSiteConfig(input: { siteTitle: "t", logoText: "", campusAlt: "a", heroPrefix: "", heroTitle: "t", heroText: "", footerTitle: "標題", phone: "bad", extension: "", hours: "", teachers: [], defaultTheme: SYSTEM, lightTheme: {}, darkTheme: {} }) { phone } }';
@@ -1718,7 +1785,7 @@ test('site data exports the seed folder format and replaces another site\'s cont
     // 和 seed/ 一樣的資料夾結構
     const files = unzip(archive);
     const text = (name) => files.get(name)?.toString('utf8');
-    assert.match(text('pages/about.md'), /^---\ntitle: "簡介"\npath: "\/pages\/about"\ncreatedAt: "[^"]+"\nupdatedAt: "[^"]+"\n---\n\n# 你好\n\n!\[地圖\]\(\{\{image:map\.png\}\}\)\n\n\[表單\]\(\{\{document:115學年度第一學期\/a\.pdf\}\}\)$/);
+    assert.match(text('pages/about.md'), /^---\ntitle: "簡介"\npath: "\/pages\/about"\ncreatedAt: "[^"]+"\nupdatedAt: "[^"]+"\nupdatedBy: "admin"\n---\n\n# 你好\n\n!\[地圖\]\(\{\{image:map\.png\}\}\)\n\n\[表單\]\(\{\{document:115學年度第一學期\/a\.pdf\}\}\)$/);
     assert.deepEqual(files.get('images/map.png'), PNG);
     assert.equal(text('documents/115學年度第一學期/a.pdf'), 'document body');
     assert.deepEqual(JSON.parse(text('documents/documents.json')).map(({ file, title, category }) => ({ file, title, category })),
@@ -1760,6 +1827,18 @@ test('site data exports the seed folder format and replaces another site\'s cont
     assert.equal((await to.gql('{ me { username } }')).data.me.username, USER.username);
     const next = (await to.gql(SAVE_ANNOUNCEMENT, { title: '新公告', content: 'x' })).data.saveAnnouncement;
     assert.ok(Number(next.id) > Number(announcement.id));
+
+    // 最後編輯的帳號：這個網站有同名的帳號就保留，沒有就不記錄
+    const editedBy = () => target.db.prepare("SELECT updated_by FROM pages WHERE slug = 'about'").get();
+    assert.equal((await editedBy()).updatedBy, USER.username);
+    await saveUser(source.db, 'only.source', PASSWORD);
+    const guest = (await login('only.source', PASSWORD, source.base)).headers;
+    await siteClient(source, guest).gql(SAVE_PAGE, { slug: 'about', title: '簡介', content: '改過', format: 'MARKDOWN' });
+    const second = Buffer.from(await (await fetch(`${source.base}/site-data`, { headers: sourceAuth })).arrayBuffer());
+    assert.match(unzip(second).get('pages/about.md').toString('utf8'), /\nupdatedBy: "only\.source"\n/);
+    assert.equal((await fetch(`${target.base}/site-data`, { method: 'POST', headers: targetAuth, body: second })).status, 200);
+    assert.equal((await editedBy()).updatedBy, null);
+    assert.equal((await to.gql('{ page(slug: "about") { html updatedBy } }')).data.page.updatedBy, null);
   } finally {
     await source.stop();
     await target.stop();
