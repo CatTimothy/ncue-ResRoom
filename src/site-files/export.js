@@ -1,4 +1,4 @@
-// 把網站資料輸出成和 seed/ 一樣的資料夾結構（打包成 ZIP 的檔案清單，見 src/lib/zip.js）。
+// 把網站資料輸出成資料夾結構（打包成 ZIP 的檔案清單，見 src/lib/zip.js）。
 // 資料取自 schema.sql 的 export_site()，同一個快照，輸出時有人在編輯也不會前後不一致
 import { stat } from 'node:fs/promises';
 import { extname, parse } from 'node:path';

@@ -1,4 +1,4 @@
-// 網站資料的 ZIP（src/site-files，和 seed/ 同樣的資料夾結構）。匯入前先在瀏覽器讀出內容摘要，讓管理員確認
+// 網站資料的 ZIP（src/site-files）。匯入前先在瀏覽器讀出內容摘要，讓管理員確認
 import { EXTENSION_METAS } from './extensions/meta.js';
 import { readZipIndex, siteFilePaths, siteSummary } from './zipIndex.js';
 

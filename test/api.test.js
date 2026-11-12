@@ -1,17 +1,15 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, relative, sep } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
 import { crc32, inflateRawSync } from 'node:zlib';
 import { after, before, test } from 'node:test';
 import pg from 'pg';
 import sharp from 'sharp';
 import { createApp } from '../src/app.js';
 import { openDb } from '../src/db/index.js';
-import { seedContent } from '../src/db/seed.js';
 import { createStorage } from '../src/lib/storage.js';
 import { saveUser } from '../src/lib/password.js';
 import { ALL_PERMISSIONS } from '../src/lib/permissions.js';
@@ -1485,75 +1483,6 @@ test('documents can be recategorized and deleted in bulk', async () => {
   await gql(DELETE, { ids: [ids[2]] });
 });
 
-test('seed content creates pages and documents once and never overwrites', async () => {
-  const storage = createStorage({ db: app.db, dataDir: app.dataDir });
-  const seedDir = fileURLToPath(new URL('../seed', import.meta.url));
-  await seedContent({ db: app.db, storage, seedDir });
-
-  const pages = (await gql('{ pages { slug title html } }')).data.pages;
-  const slugs = pages.map((page) => page.slug);
-  for (const slug of ['about', 'services', 'members', 'regulations', 'map']) assert.ok(slugs.includes(slug), slug);
-  const map = pages.find((page) => page.slug === 'map');
-  assert.match(map.html, /<img src="\/files\/display\/[0-9a-f-]{36}\.webp"/);
-  const image = /src="([^"]+)"/.exec(map.html)[1];
-  assert.equal((await fetch(app.base + image)).status, 200);
-  assert.ok(pages.find((page) => page.slug === 'regulations').html.includes('https://law.moj.gov.tw/'));
-
-  const documents = (await gql('{ documents(limit: 100) { title category url } }')).data.documents;
-  assert.equal(documents.length, 7);
-  assert.equal(documents[0].title, [...documents.map((d) => d.title)].sort()[0]);
-  assert.equal(documents[0].category, '111學年度第一學期');
-
-  const { navigation } = (await gql(NAVIGATION)).data;
-  assert.deepEqual(slugsOf(navigation.utility), ['HOME', 'map', 'DOCUMENTS']);
-  assert.deepEqual(slugsOf(navigation.main), ['about', 'services', 'ANNOUNCEMENTS', 'members', 'regulations', 'PHOTOS']);
-  await saveNavigation({ utility: [{ page: 'about' }], main: [] });
-
-  await gql(SAVE_PAGE, { slug: 'about', title: '改過', format: 'MARKDOWN', content: '改過' });
-  const count = uploadsCount();
-  await seedContent({ db: app.db, storage, seedDir });
-  assert.equal(uploadsCount(), count);
-  assert.equal((await gql('{ page(slug: "about") { title } }')).data.page.title, '改過');
-  assert.equal((await gql('{ documents(limit: 100) { id } }')).data.documents.length, 7);
-  assert.deepEqual(slugsOf((await gql(NAVIGATION)).data.navigation.utility), ['about'], 'a navigation with pages is kept');
-
-  for (const { slug } of pages) await gql('mutation ($s: String!) { deletePage(slug: $s) }', { s: slug });
-  for (const { id } of (await gql('{ documents(limit: 100) { id } }')).data.documents) await gql(`mutation { deleteDocument(id: ${id}) }`);
-  await app.db.prepare('DELETE FROM photos WHERE album_id IS NULL').run();
-  await app.db.prepare('UPDATE site_config SET favicon_url = NULL, logo_url = NULL, campus_url = NULL').run();
-});
-
-test('seed content applies the school settings only where the demo defaults are still in place', async () => {
-  const site = await start();
-  try {
-    const seedDir = fileURLToPath(new URL('../seed', import.meta.url));
-    const storage = createStorage({ db: site.db, dataDir: site.dataDir });
-    const headers = (await login(USER.username, USER.password, site.base)).headers;
-    const client = siteClient(site, headers);
-    const readConfig = async () => (await client.gql(`{ siteConfig { ${CONFIG_FIELDS} } }`)).data.siteConfig;
-
-    // 已經改過的設定不會被覆蓋
-    await client.gql(SAVE_CONFIG, { input: { ...(await readConfig()), heroText: '自己改的' } });
-    await seedContent({ db: site.db, storage, seedDir });
-
-    const { images, ...school } = JSON.parse(readFileSync(join(seedDir, 'site-config.json'), 'utf8'));
-    const config = await readConfig();
-    assert.deepEqual({ ...config, heroText: school.heroText }, { ...config, ...school });
-    assert.equal(config.heroText, '自己改的');
-    for (const [field, name] of Object.entries(images)) {
-      assert.match(config[field], /^\/files\/display\/[0-9a-f-]{36}\.webp$/, field);
-      assert.equal((await fetch(site.base + config[field])).status, 200);
-      const original = await site.db.prepare('SELECT filename FROM photos WHERE stored_name LIKE $1').get(`${config[field].split('/').pop().replace('.webp', '')}.%`);
-      assert.equal(original.filename, name);
-    }
-
-    await seedContent({ db: site.db, storage, seedDir });
-    assert.deepEqual(await readConfig(), config);
-  } finally {
-    await site.stop();
-  }
-});
-
 test('oversized bodies are rejected', async () => {
   const res = await post(app.base, 'x'.repeat(5 * 1024 * 1024), {}, auth);
   assert.equal(res.status, 413);
@@ -1625,7 +1554,7 @@ function siteClient(site, headers) {
   };
 }
 
-test('site data exports the seed folder format and replaces another site\'s content', async () => {
+test('site data exports its folder format and replaces another site\'s content', async () => {
   const source = await start();
   const target = await start();
   try {
@@ -1656,7 +1585,7 @@ test('site data exports the seed folder format and replaces another site\'s cont
     const archive = Buffer.from(await exported.arrayBuffer());
     assert.equal(archive.length, Number(exported.headers.get('content-length')));
 
-    // 和 seed/ 一樣的資料夾結構
+    // 資料夾結構見 README 的「網站資料的輸出與匯入」
     const files = unzip(archive);
     const text = (name) => files.get(name)?.toString('utf8');
     assert.match(text('pages/about.md'), /^---\ntitle: "簡介"\npath: "\/pages\/about"\ncreatedAt: "[^"]+"\nupdatedAt: "[^"]+"\n---\n\n# 你好\n\n!\[地圖\]\(\{\{image:map\.png\}\}\)\n\n\[表單\]\(\{\{document:115學年度第一學期\/a\.pdf\}\}\)$/);
@@ -1714,27 +1643,34 @@ async function zipBuffer(entries) {
   return Buffer.concat(chunks);
 }
 
-test('the seed folder can be zipped and imported as site data', async () => {
+test('site data zipped inside one folder is imported without the outer folder', async () => {
   const site = await start();
   try {
     const headers = (await login(USER.username, USER.password, site.base)).headers;
     const client = siteClient(site, headers);
-    // 用資料夾壓縮時，檔案都在 seed/ 底下，匯入時去掉這一層
-    const seedDir = fileURLToPath(new URL('../seed', import.meta.url));
-    const paths = readdirSync(seedDir, { recursive: true, withFileTypes: true }).filter((entry) => entry.isFile())
-      .map((entry) => join(entry.parentPath, entry.name));
-    const zip = await zipBuffer(paths.map((path) => ({ name: `seed/${relative(seedDir, path).split(sep).join('/')}`, path })));
+    // 把整個資料夾壓縮時，檔案都在同一個資料夾底下，匯入時去掉這一層
+    const files = {
+      'site-config.json': JSON.stringify({ siteTitle: '示範學校資源教室' }),
+      'navigation.json': JSON.stringify({ utility: [{ service: 'HOME' }, { page: 'map' }], main: [{ page: 'about' }, { service: 'PHOTOS' }] }),
+      'pages/about.md': '---\ntitle: 簡介\npath: /about\n---\n\n內容',
+      'pages/map.md': '---\ntitle: 位置圖\npath: /map\n---\n\n![位置圖]({{image:map.png}})',
+      'images/map.png': PNG,
+      'documents/111學年度第一學期/申請表.doc': Buffer.from('doc'),
+    };
+    const zip = await zipBuffer(Object.entries(files).map(([name, data]) => ({ name: `backup/${name}`, data: Buffer.from(data) })));
 
     const res = await fetch(`${site.base}/site-data`, { method: 'POST', headers, body: zip });
     assert.equal(res.status, 200);
-    assert.deepEqual(await res.json(), { pages: 5, announcements: 0, albums: 0, photos: 0, documents: 7 });
+    assert.deepEqual(await res.json(), { pages: 2, announcements: 0, albums: 0, photos: 0, documents: 1 });
     const pages = (await client.gql('{ pages { slug title html } }')).data.pages;
-    assert.equal(pages.find((page) => page.slug === 'about').title, '資源教室簡介');
+    assert.equal(pages.find((page) => page.slug === 'about').title, '簡介');
     assert.match(pages.find((page) => page.slug === 'map').html, /<img src="\/files\/display\/[0-9a-f-]{36}\.webp"/);
     const documents = (await client.gql('{ documents(limit: 100) { category } }')).data.documents;
-    assert.ok(documents.every((doc) => doc.category === '111學年度第一學期'));
-    assert.equal((await client.gql('{ siteConfig { siteTitle } }')).data.siteConfig.siteTitle, '國立彰化師範大學資源教室');
-    assert.deepEqual(slugsOf((await client.gql(NAVIGATION)).data.navigation.main), ['about', 'services', 'ANNOUNCEMENTS', 'members', 'regulations', 'PHOTOS']);
+    assert.deepEqual(documents, [{ category: '111學年度第一學期' }]);
+    assert.equal((await client.gql('{ siteConfig { siteTitle } }')).data.siteConfig.siteTitle, '示範學校資源教室');
+    const { navigation } = (await client.gql(NAVIGATION)).data;
+    assert.deepEqual(slugsOf(navigation.utility), ['HOME', 'map']);
+    assert.deepEqual(slugsOf(navigation.main), ['about', 'PHOTOS']);
   } finally {
     await site.stop();
   }
