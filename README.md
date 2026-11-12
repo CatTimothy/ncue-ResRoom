@@ -7,8 +7,8 @@
 ```sh
 npm install
 cp .env.example .env               # 填入 DATABASE_URL，資料庫需先建立
-npm run create-user -- admin       # 建立第一位使用者；忘記密碼時也用它重設
-npm run dev                        # http://localhost:4000/graphql
+npm run dev                        # http://localhost:4000/graphql；第一次啟動會建立預設帳號
+npm run create-user -- admin       # 忘記密碼時重設，或另外建立有全部權限的帳號
 npm test                           # 需要 TEST_DATABASE_URL，帳號要有建立資料庫的權限
 ```
 
@@ -164,7 +164,9 @@ mutation { createUser(username: "editor", password: "...", permissions: [MANAGE_
 mutation { setUserPermissions(username: "editor", permissions: [MANAGE_ALBUMS]) { username permissions } }
 ```
 
-第一位使用者要用 `npm run create-user -- <username>` 建立。忘記密碼時也用這個指令重設，既有帳號的權限不變；用指令新增的帳號有全部權限。
+伺服器啟動時如果還沒有任何使用者，會自動建立預設帳號 `admin`，密碼 `admin123456789`，有全部權限（`src/lib/password.js` 的 `DEFAULT_USER`）。這組密碼是公開的，**請在第一次登入後立刻到「帳號設定」更改**；還沒更改前，每次啟動都會在終端機顯示警告。已經有使用者時不會建立，刪除 `admin` 也不會再出現。
+
+忘記密碼時用 `npm run create-user -- <username>` 重設，既有帳號的權限不變；也可以用它新增帳號，用指令新增的帳號有全部權限。
 
 - 更改密碼後，同一帳號的所有裝置都會被登出，只有目前的裝置會換一個新的登入狀態。
 - 權限變更會立即在伺服器生效，不需要重新登入；對方畫面上的按鈕要重新整理頁面才會更新。

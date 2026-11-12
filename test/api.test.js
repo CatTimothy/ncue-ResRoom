@@ -13,7 +13,7 @@ import { createApp } from '../src/app.js';
 import { openDb } from '../src/db/index.js';
 import { seedContent } from '../src/db/seed.js';
 import { createStorage } from '../src/lib/storage.js';
-import { saveUser } from '../src/lib/password.js';
+import { DEFAULT_USER, ensureDefaultUser, saveUser } from '../src/lib/password.js';
 import { ALL_PERMISSIONS } from '../src/lib/permissions.js';
 import { DEFAULT_NAVIGATION } from '../web/src/navigation.js';
 import { PERMISSIONS as WEB_PERMISSIONS } from '../web/src/permissions.js';
@@ -189,6 +189,31 @@ test('every mutation except login, logout and the view counters requires a sessi
   }
   const multipart = await upload(UPLOAD_PHOTO, { alt: 'a', albumId: 1 }, PNG, 'a.png', {});
   assert.equal(multipart.status, 401);
+});
+
+test('the default account is only created when there are no users, and is reported until its password changes', async () => {
+  const other = await start();
+  try {
+    assert.equal(await ensureDefaultUser(other.db), null); // start() 已經建立 admin，密碼不是預設的
+    await other.db.prepare('DELETE FROM users').run();
+
+    assert.equal(await ensureDefaultUser(other.db), 'created');
+    assert.equal(await ensureDefaultUser(other.db), 'unchanged');
+    const { headers } = await login(DEFAULT_USER.username, DEFAULT_USER.password, other.base);
+    const me = await (await post(other.base, '{ me { username permissions } }', undefined, headers)).json();
+    assert.deepEqual(me.data.me, { username: DEFAULT_USER.username, permissions: ALL_PERMISSIONS });
+
+    await saveUser(other.db, DEFAULT_USER.username, PASSWORD);
+    assert.equal(await ensureDefaultUser(other.db), null);
+
+    // 有其他使用者時，即使沒有 admin 也不建立
+    await saveUser(other.db, 'someone', PASSWORD);
+    await other.db.prepare('DELETE FROM users WHERE username = $1').run(DEFAULT_USER.username);
+    assert.equal(await ensureDefaultUser(other.db), null);
+    assert.equal((await other.db.prepare('SELECT count(*)::int AS total FROM users').get()).total, 1);
+  } finally {
+    await other.stop();
+  }
 });
 
 test('users never expose the password hash', async () => {

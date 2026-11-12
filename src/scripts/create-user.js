@@ -1,4 +1,5 @@
-// 建立第一位使用者，或在忘記密碼時重設：npm run create-user -- <username>
+// 忘記密碼時重設，或新增有全部權限的帳號：npm run create-user -- <username>
+// 第一位使用者由伺服器啟動時自動建立，見 src/lib/password.js 的 ensureDefaultUser
 import { createInterface } from 'node:readline/promises';
 import { Writable } from 'node:stream';
 import { openDb } from '../db/index.js';
