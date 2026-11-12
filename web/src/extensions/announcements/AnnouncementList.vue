@@ -1,8 +1,8 @@
 <script setup>
 import { computed } from 'vue';
-import { can, deleteAnnouncement } from '../api.js';
-import { deleteQuestion, groupByYear, isScheduled, monthDayText, rocDateText, rocShortDate, wasEdited } from '../format.js';
-import { confirmDelete } from '../page.js';
+import { can, deleteAnnouncement } from '../../api.js';
+import { deleteQuestion, groupByYear, isScheduled, monthDayText, rocDateText, rocShortDate, wasEdited } from '../../format.js';
+import { confirmDelete } from '../../page.js';
 
 const props = defineProps({ items: { type: Array, required: true } });
 

@@ -1,9 +1,9 @@
 <script setup>
-import { fetchPhotos } from '../api.js';
-import { albumPhotosKey } from '../cache.js';
-import { usePagedList } from '../usePagedList.js';
-import ListStatus from './ListStatus.vue';
-import PhotoGallery from './PhotoGallery.vue';
+import { fetchPhotos } from '../../api.js';
+import { albumPhotosKey } from '../../cache.js';
+import { usePagedList } from '../../usePagedList.js';
+import ListStatus from '../../components/ListStatus.vue';
+import PhotoGallery from '../../components/PhotoGallery.vue';
 
 const props = defineProps({
   albumId: { type: String, required: true },

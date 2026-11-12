@@ -1,11 +1,11 @@
 <script setup>
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
-import { saveAlbum } from '../api.js';
-import { taipeiDay } from '../format.js';
-import { useEditor } from '../useEditor.js';
-import EditorDialog from './EditorDialog.vue';
-import RocDateInput from './RocDateInput.vue';
+import { saveAlbum } from '../../api.js';
+import { taipeiDay } from '../../format.js';
+import { useEditor } from '../../useEditor.js';
+import EditorDialog from '../../components/EditorDialog.vue';
+import RocDateInput from '../../components/RocDateInput.vue';
 
 const router = useRouter();
 const { dialog, form, changed, busy, error, show, run } = useEditor({ name: '', eventDate: '' });

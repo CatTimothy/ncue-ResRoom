@@ -1,14 +1,14 @@
 <script setup>
 import { useTemplateRef } from 'vue';
 import { useRouter } from 'vue-router';
-import { can, deleteAlbum, fetchAlbum } from '../api.js';
-import AlbumEditor from '../components/AlbumEditor.vue';
-import AlbumHeader from '../components/AlbumHeader.vue';
-import AlbumPhotos from '../components/AlbumPhotos.vue';
-import ItemStatus from '../components/ItemStatus.vue';
-import { albumDeleteQuestion } from '../format.js';
-import { confirmDelete } from '../page.js';
-import { useCachedItem } from '../useCachedItem.js';
+import { can, deleteAlbum, fetchAlbum } from '../../api.js';
+import AlbumEditor from './AlbumEditor.vue';
+import AlbumHeader from './AlbumHeader.vue';
+import AlbumPhotos from './AlbumPhotos.vue';
+import ItemStatus from '../../components/ItemStatus.vue';
+import { albumDeleteQuestion } from '../../format.js';
+import { confirmDelete } from '../../page.js';
+import { useCachedItem } from '../../useCachedItem.js';
 
 const props = defineProps({ id: { type: String, required: true } });
 

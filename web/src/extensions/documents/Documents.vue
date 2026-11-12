@@ -1,11 +1,11 @@
 <script setup>
 import { computed, reactive, useTemplateRef } from 'vue';
-import { can, deleteDocument, deleteDocuments, fetchDocuments } from '../api.js';
-import DocumentEditor from '../components/DocumentEditor.vue';
-import ListStatus from '../components/ListStatus.vue';
-import { deleteQuestion, fileSizeText, groupDocuments } from '../format.js';
-import { confirmDelete } from '../page.js';
-import { usePagedList } from '../usePagedList.js';
+import { can, deleteDocument, deleteDocuments, fetchDocuments } from '../../api.js';
+import DocumentEditor from './DocumentEditor.vue';
+import ListStatus from '../../components/ListStatus.vue';
+import { deleteQuestion, fileSizeText, groupDocuments } from '../../format.js';
+import { confirmDelete } from '../../page.js';
+import { usePagedList } from '../../usePagedList.js';
 
 const editor = useTemplateRef('editor');
 const list = usePagedList(() => 'documents', fetchDocuments, 50);

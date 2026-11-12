@@ -1,11 +1,16 @@
 // 網站資料的 ZIP（src/site-files，和 seed/ 同樣的資料夾結構）。匯入前先在瀏覽器讀出內容摘要，讓管理員確認
+import { EXTENSION_METAS } from './extensions/meta.js';
 import { readZipIndex, siteFilePaths, siteSummary } from './zipIndex.js';
 
 /** 輸出與匯入網站資料的網址 */
 export const SITE_DATA_URL = '/site-data';
 
-/** 和 src/lib/permissions.js 的 SITE_DATA_PERMISSIONS 一致：帳號管理以外的所有權限 */
-export const SITE_DATA_PERMISSIONS = ['MANAGE_ANNOUNCEMENTS', 'MANAGE_ALBUMS', 'MANAGE_DOCUMENTS', 'MANAGE_PAGES', 'MANAGE_SITE_CONFIG'];
+/** 和 src/lib/permissions.js 的 SITE_DATA_PERMISSIONS 一致：系統擴充功能的權限，加上頁面與網站設定 */
+export const SITE_DATA_PERMISSIONS = [
+  ...EXTENSION_METAS.filter((meta) => meta.system).flatMap((meta) => Object.keys(meta.permissions ?? {})),
+  'MANAGE_PAGES',
+  'MANAGE_SITE_CONFIG',
+];
 
 const ITEMS = [
   ['pages', '頁面', '個'],

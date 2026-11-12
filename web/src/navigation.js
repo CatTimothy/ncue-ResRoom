@@ -1,3 +1,6 @@
+import { EXTENSION_METAS } from './extensions/meta.js';
+import { CORE_PATHS } from './reservedPaths.js';
+
 /** 常用頁面的預設標題：頁面還沒建立時顯示 */
 export const BUILT_IN_PAGES = {
   about: '資源教室簡介',
@@ -7,12 +10,10 @@ export const BUILT_IN_PAGES = {
   map: '位置圖',
 };
 
-/** 頁首選單可以連到的網站功能，對應 API 的 NavService；名稱也是這些頁面的標題 */
+/** 頁首選單可以連到的網站功能：首頁與每個擴充功能，對應 API 的 NavService；名稱也是這些頁面的標題 */
 export const SERVICES = {
   HOME: { to: '/', label: '首頁' },
-  ANNOUNCEMENTS: { to: '/announcements', label: '最新消息' },
-  PHOTOS: { to: '/photos', label: '活動剪影' },
-  DOCUMENTS: { to: '/documents', label: '文件下載' },
+  ...Object.fromEntries(EXTENSION_METAS.map(({ key, path, label }) => [key, { to: path, label }])),
 };
 
 /** 選單還沒載入時用的排列，和資料庫建立時的內容一樣（test/api.test.js 會比對）；頁面由 seed-content 加入 */
@@ -23,8 +24,8 @@ export const DEFAULT_NAVIGATION = {
 
 /** 網站已經用掉的第一層網址，放在第一層的頁面不能用這些 slug（伺服器的 savePage 也會檢查） */
 export const RESERVED_SLUGS = [
-  'announcements', 'photos', 'documents', 'pages', 'settings', 'login',
-  'files', 'assets', 'graphql', 'site-data', 'static-site',
+  ...EXTENSION_METAS.map(({ path }) => path.slice(1)),
+  ...CORE_PATHS,
 ];
 
 /** 頁面的網址：root 的頁面在第一層（/about），其他的在 /pages 底下（/pages/about） */
@@ -51,9 +52,12 @@ export const linkInput = (key) => (key.startsWith('page:') ? { page: key.slice('
 /** API 的選單換成 { utility: [key], main: [key] }，網站設定編輯的就是這個 */
 export const navigationKeys = (navigation) => mapMenus(navigation, (link) => menuLink(link).key);
 
-/** 所有可以放進選單的連結：網站功能與每個頁面（pages 是 { slug, title }），key → 連結 */
-export const allLinks = (pages) => new Map(
-  [...Object.keys(SERVICES).map((service) => ({ service })), ...pages.map((page) => ({ page }))]
+/**
+ * 所有可以放進選單的連結：網站功能與每個頁面（pages 是 { slug, title }），key → 連結。
+ * services 是可用的網站功能，停用的擴充功能不列出
+ */
+export const allLinks = (pages, services = Object.keys(SERVICES)) => new Map(
+  [...services.map((service) => ({ service })), ...pages.map((page) => ({ page }))]
     .map(menuLink)
     .map((link) => [link.key, link]),
 );

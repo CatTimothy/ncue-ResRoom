@@ -1,5 +1,5 @@
 import { computed, watchEffect } from 'vue';
-import { fetchNavigation, fetchSiteConfig } from './api.js';
+import { fetchExtensions, fetchNavigation, fetchSiteConfig } from './api.js';
 import { DEFAULT_IMAGES } from './defaultImages.js';
 import { pageName } from './page.js';
 import { useCachedItem } from './useCachedItem.js';
@@ -11,6 +11,12 @@ export const { item: siteConfig } = useCachedItem(() => 'site-config', fetchSite
 
 /** 頁首選單 { utility: [{ service, page }], main }，頁首與網站設定共用一份；載入前是 null */
 export const { item: navigation } = useCachedItem(() => 'navigation', fetchNavigation);
+
+/** 擴充功能與啟用狀態 [{ key, label, description, path, system, enabled }]；載入前是 null */
+export const { item: extensionStates } = useCachedItem(() => 'extensions', fetchExtensions);
+
+/** 擴充功能是否啟用；狀態載入前當作啟用，避免網址先顯示找不到頁面 */
+export const isExtensionEnabled = (key) => extensionStates.value?.find((extension) => extension.key === key)?.enabled ?? true;
 
 /** 設定的圖片網址，沒有設定時用內建的圖片 */
 export const siteImage = (field) => computed(() => siteConfig.value?.[field] ?? DEFAULT_IMAGES[field]);

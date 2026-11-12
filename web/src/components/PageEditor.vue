@@ -6,7 +6,7 @@ import { useLeaveGuard } from '../useEditMode.js';
 import { useEditor } from '../useEditor.js';
 import EditorForm from './EditorForm.vue';
 
-const MarkdownEditor = defineAsyncComponent(() => import('./MarkdownEditor.vue'));
+const RichTextEditor = defineAsyncComponent(() => import('./RichTextEditor.vue'));
 
 const props = defineProps({
   /** 不提供時是新增頁面；提供時編輯（頁面不存在就建立） */
@@ -89,12 +89,12 @@ const submit = () => run(async () => {
     </label>
     <fieldset class="format-choice">
       <legend>內容格式</legend>
-      <label><input v-model="form.format" type="radio" value="MARKDOWN" :disabled="loading" /> Markdown</label>
+      <label><input v-model="form.format" type="radio" value="MARKDOWN" :disabled="loading" /> 文字編輯器</label>
       <label><input v-model="form.format" type="radio" value="HTML" :disabled="loading" /> HTML</label>
     </fieldset>
     <div v-if="form.format === 'MARKDOWN'" class="field">
       <span>內容</span>
-      <MarkdownEditor v-model="form.content" :disabled="loading" @error="error = $event" />
+      <RichTextEditor v-model="form.content" :disabled="loading" label="內容" @error="error = $event" />
     </div>
     <label v-else class="field">
       <span>內容（HTML）</span>

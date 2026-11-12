@@ -6,16 +6,22 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "predev": "node ../src/scripts/extensions.js sync",
     "dev": "vite",
+    "prebuild": "node ../src/scripts/extensions.js sync",
     "build": "vite build",
     "preview": "vite preview",
     "test": "node --test"
   },
   "dependencies": {
-    "@codemirror/view": "^6.43.15",
     "@fontsource/huninn": "^5.3.1",
-    "@vavt/cm-extension": "^2.0.0",
-    "md-editor-v3": "^7.1.0",
+    "@tiptap/core": "3.32.1",
+    "@tiptap/extension-image": "3.32.1",
+    "@tiptap/extension-table": "3.32.1",
+    "@tiptap/markdown": "3.32.1",
+    "@tiptap/pm": "3.32.1",
+    "@tiptap/starter-kit": "3.32.1",
+    "@tiptap/vue-3": "3.32.1",
     "vue": "^3.5.44",
     "vue-router": "^5.4.0"
   },

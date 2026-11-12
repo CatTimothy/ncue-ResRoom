@@ -2,11 +2,12 @@
 // 最後用 schema.sql 的 import_site() 一次寫入；任何一步失敗都會刪掉這次寫入的檔案，資料庫維持原狀
 import { basename, extname } from 'node:path';
 import { snakeizeKeys } from '../db/index.js';
+import { EXTENSIONS } from '../extensions/index.js';
+import { NAV_SERVICES } from '../graphql/navigation.js';
 import { fail } from '../lib/errors.js';
 import { PLACEHOLDER } from './format.js';
 import { readSite } from './read.js';
 
-const SERVICES = ['HOME', 'ANNOUNCEMENTS', 'PHOTOS', 'DOCUMENTS'];
 const DEFAULT_NAVIGATION = { utility: [{ service: 'HOME' }], main: [{ service: 'ANNOUNCEMENTS' }, { service: 'PHOTOS' }] };
 
 /** 資料裡寫的 id 沒重複就沿用（網址不變），其餘的接在後面編號 */
@@ -105,13 +106,17 @@ export async function importSite({ db, storage, source }) {
     const slugs = new Set(pages.map((page) => page.slug));
     const navigation = site.navigation ?? DEFAULT_NAVIGATION;
     const links = Object.entries({ UTILITY: navigation.utility, MAIN: navigation.main }).flatMap(([menu, items]) => (items ?? [])
-      .filter(({ page, service }) => (page ? slugs.has(page) : SERVICES.includes(service)))
+      .filter(({ page, service }) => (page ? slugs.has(page) : NAV_SERVICES.includes(service)))
       .map(({ page = null, service = null }, position) => ({ menu, position, page_slug: page, service: page ? null : service })));
+
+    // 只保留這個網站有的擴充功能，值要是 true 或 false
+    const states = site.extensions && typeof site.extensions === 'object' && !Array.isArray(site.extensions) ? site.extensions : {};
+    const extensions = EXTENSIONS.filter(({ key }) => typeof states[key] === 'boolean').map(({ key }) => ({ key, enabled: states[key] }));
 
     const previous = (await db.prepare('SELECT stored_name FROM photos UNION ALL SELECT stored_name FROM documents').all())
       .map((row) => row.storedName);
     await db.prepare('SELECT import_site($1::jsonb)').run(JSON.stringify({
-      pages, announcements, albums, photos, documents, site_config: [config], navigation_links: links, daily_visits: site.visits,
+      pages, announcements, albums, photos, documents, site_config: [config], navigation_links: links, daily_visits: site.visits, extensions,
     }));
     await storage.removeFiles(previous);
 

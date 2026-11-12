@@ -1,8 +1,8 @@
 <script setup>
 import { useTemplateRef } from 'vue';
-import { can, deleteAlbum } from '../api.js';
-import { albumDeleteQuestion, parseAlbum, rocDateText } from '../format.js';
-import { confirmDelete } from '../page.js';
+import { can, deleteAlbum } from '../../api.js';
+import { albumDeleteQuestion, parseAlbum, rocDateText } from '../../format.js';
+import { confirmDelete } from '../../page.js';
 import AlbumEditor from './AlbumEditor.vue';
 
 defineProps({ items: { type: Array, required: true } });

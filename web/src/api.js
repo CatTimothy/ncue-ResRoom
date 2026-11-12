@@ -56,7 +56,8 @@ async function send(init) {
   return Object.values(data)[0]; // 每個請求都只查詢一個欄位
 }
 
-function query(text, variables) {
+/** 送出 GraphQL 查詢，回傳唯一一個欄位的值；擴充功能也用這個 */
+export function query(text, variables) {
   return send({
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ query: text, variables }),
@@ -78,7 +79,8 @@ async function changed(request, message) {
   return result;
 }
 
-const mutate = (text, variables, message) => changed(query(text, variables), message);
+/** 會改變內容的請求：完成後清除快取、更新畫面並顯示 message */
+export const mutate = (text, variables, message) => changed(query(text, variables), message);
 
 /** 依 id 刪除的 mutation */
 const deleter = (name, message) => (id) => mutate(`mutation ($id: ID!) { ${name}(id: $id) }`, { id }, message);
@@ -150,6 +152,15 @@ export const fetchNavigation = () => query(
   `{ navigation { utility { ${NAV_LINK_FIELDS} } main { ${NAV_LINK_FIELDS} } } }`,
 );
 
+// 擴充功能
+export const fetchExtensions = () => query('{ extensions { key label description path system enabled } }');
+
+/** 需要 MANAGE_SITE_CONFIG；啟用時伺服器會把它加回頁首選單 */
+export const setExtensionEnabled = (key, enabled, label) => mutate(
+  'mutation ($key: String!, $enabled: Boolean!) { setExtensionEnabled(key: $key, enabled: $enabled) { key enabled } }',
+  { key, enabled },
+  `已${enabled ? '啟用' : '停用'}「${label}」`,
+);
 
 // 內文圖片
 export const uploadContentImage = (file) => sendFile(

@@ -1,7 +1,7 @@
 <script setup>
 import { computed } from 'vue';
-import { can } from '../api.js';
-import { parseAlbum, rocDateText, rocShortDate, wasEdited } from '../format.js';
+import { can } from '../../api.js';
+import { parseAlbum, rocDateText, rocShortDate, wasEdited } from '../../format.js';
 
 const props = defineProps({
   album: { type: Object, required: true },

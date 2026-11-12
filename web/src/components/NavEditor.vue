@@ -1,19 +1,21 @@
 <script setup>
 import { computed, nextTick, ref, useId, useTemplateRef } from 'vue';
-import { allLinks, editorRows, moveLink } from '../navigation.js';
+import { allLinks, editorRows, moveLink, SERVICES } from '../navigation.js';
 
 /** 頁首選單 { utility: [key], main: [key] }；key 見 navigation.js 的 menuLink */
 const navigation = defineModel({ type: Object, required: true });
 const props = defineProps({
   /** 所有頁面 { slug, title }，沒放進選單的列在「未加入」 */
   pages: { type: Array, default: () => [] },
+  /** 可以放進選單的網站功能（停用的擴充功能不列出） */
+  services: { type: Array, default: () => Object.keys(SERVICES) },
 });
 
 const ROWS = { utility: '上方的小選單', main: '主選單', unused: '未加入' };
 const ORDER = Object.keys(ROWS);
 const hintId = useId();
 const root = useTemplateRef('root');
-const links = computed(() => allLinks(props.pages));
+const links = computed(() => allLinks(props.pages, props.services));
 const rows = computed(() => editorRows(navigation.value, links.value));
 const keys = computed(() => Object.fromEntries(ORDER.map((row) => [row, rows.value[row].map((link) => link.key)])));
 const dragging = ref(null);

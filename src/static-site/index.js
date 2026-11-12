@@ -1,62 +1,26 @@
 // 把網站輸出成靜態的 HTML 檔（網站設定的「下載靜態網站」）。
-// 版面和 web/ 的 Vue 元件一致（共用 style.css 與 web/src 的格式函式），但只有公開內容：已發布的公告、有照片的相簿、頁面與文件。
+// 版面和 web/ 的 Vue 元件一致（共用 style.css 與 web/src 的格式函式），但只有公開內容：首頁、頁面與啟用中的擴充功能的頁面（各自的 static.js）。
 // 每個網址是一個資料夾裡的 index.html，連結都是相對路徑，放到任何網頁伺服器或直接開啟檔案都能瀏覽。
 // 修改 web/ 的版面時，這裡的對應樣板也要一起改
 import { readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DEFAULT_IMAGES } from '../../web/src/defaultImages.js';
-import {
-  fileSizeText, groupByYear, groupDocuments, monthDayText, parseAlbum, rocDateText, rocDateTimeText, rocShortDate, telHref, wasEdited,
-} from '../../web/src/format.js';
+import { telHref } from '../../web/src/format.js';
 import { mapMenus, menuLink, pagePath } from '../../web/src/navigation.js';
+import { enabledExtensions } from '../extensions/state.js';
 import { readNavigation } from '../graphql/navigation.js';
-import { renderAnnouncement, renderPage } from '../lib/content.js';
+import { renderPage } from '../lib/content.js';
 import { fail } from '../lib/errors.js';
+import {
+  articleBody, excerpt, firstImage, HOME_CRUMB, html, latest, page, raw, textOf, urlsFor,
+} from './template.js';
+
+export { textOf };
 
 const COPYRIGHT = 'CatTimothy'; // 和 web/src/components/SiteFooter.vue 一致
 const GITHUB_URL = 'https://github.com/CatTimothy/ncue-ResRoom';
-const HOME_ANNOUNCEMENTS = 5;
-const HOME_ALBUMS = 6;
-const SECTION_PHOTOS = 24; // 活動剪影每本相簿先顯示的張數，和 AlbumSection.vue 一致
 const NAV_LABELS = { utility: '輔助選單', main: '主選單' };
-
-// ---- HTML 樣板：${} 的值一律跳脫，已是 HTML 的用 raw() 包起來 ----
-class Raw {
-  constructor(value) {
-    this.value = value;
-  }
-}
-const raw = (value) => new Raw(value);
-const escape = (value) => String(value).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
-const show = (value) => {
-  if (value instanceof Raw) return value.value;
-  if (Array.isArray(value)) return value.map(show).join('');
-  return value == null || value === false ? '' : escape(value);
-};
-const html = (strings, ...values) => raw(strings.reduce((out, text, i) => out + text + (i < values.length ? show(values[i]) : ''), ''));
-
-/**
- * 一個網址（例如 /photos/3）所在頁面用的連結。mode 是 'files'（下載的 ZIP，用相對路徑，直接開啟檔案也能瀏覽）
- * 或 'site'（伺服器在 <noscript> 裡提供的頁面，用網站原本的網址）
- */
-function urlsFor(route, mode = 'files') {
-  if (mode === 'site') return { route, mode, to: (path) => path, local: (url) => url };
-  const depth = route === '/' ? 0 : route.split('/').length - 1;
-  const prefix = '../'.repeat(depth);
-  const to = (path) => (path === '/' ? `${prefix}index.html` : `${prefix}${path.replace(/^\/|\/$/g, '')}/index.html`);
-  /** 網站內的絕對網址換成相對路徑；檔案直接對應，其他網址當作頁面 */
-  const local = (url) => {
-    if (!url.startsWith('/') || url.startsWith('//')) return url;
-    const [, path, suffix = ''] = /^([^?#]*)(?:\?[^#]*)?(#.*)?$/.exec(url);
-    if (path.startsWith('/files/') || /\.[a-z0-9]+$/i.test(path)) return prefix + path.slice(1) + suffix;
-    return to(path) + suffix;
-  };
-  return { route, mode, to, local };
-}
-
-/** API 消毒過的內文：網址改成相對路徑 */
-const localizeHtml = (text, u) => raw(text.replace(/\b(href|src)="(\/[^"]*)"/g, (_, attr, url) => `${attr}="${escape(u.local(url.replace(/&amp;/g, '&')))}"`));
 
 const isCurrent = (u, to) => u.route === to || (to !== '/' && u.route.startsWith(`${to}/`));
 
@@ -154,37 +118,6 @@ function themeScript({ config }) {
     </script>`);
 }
 
-/** 一頁的定義：網址、標題與內容；ZIP 用 layout 包成整份文件，<noscript> 用 noscriptBody */
-const page = (route, title, body, { lightbox = false } = {}) => ({ route, title, body, lightbox });
-
-/** HTML 轉成純文字（描述、給 AI 的全文用） */
-export function textOf(markup) {
-  return markup
-    .replace(/<(script|style)[\s\S]*?<\/\1>/gi, ' ')
-    // 圖片換成它的說明，只有圖片的頁面（例如位置圖）也有描述
-    .replace(/<img[^>]*\balt="([^"]*)"[^>]*>/gi, '\n$1\n')
-    // 區塊元素換行；行內元素（strong、a 等）直接拿掉，中文的字才不會被空白隔開
-    .replace(/<br\s*\/?>|<\/(p|h[1-6]|li|div|tr|td|th|dt|dd|blockquote|pre|figcaption)>/gi, '\n')
-    .replace(/<[^>]+>/g, '')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#(\d+);/g, (_, code) => String.fromCodePoint(Number(code)))
-    .replace(/&amp;/g, '&')
-    .replace(/[ \t]+/g, ' ')
-    .replace(/ *\n[\s]*/g, '\n')
-    .trim();
-}
-
-/** 搜尋結果與分享時顯示的描述：一行、最多 max 字 */
-const excerpt = (text, max = 120) => {
-  const flat = text.replace(/\s+/g, ' ').trim();
-  return flat.length > max ? `${flat.slice(0, max - 1)}…` : flat;
-};
-
-const firstImage = (markup) => /<img[^>]+src="([^"]+)"/.exec(markup)?.[1] ?? null;
-const latest = (dates) => dates.filter(Boolean).sort().at(-1) ?? null;
 
 const fullTitleOf = (site, title) => (title ? `${title}｜${site.config.siteTitle}` : site.config.siteTitle);
 
@@ -215,72 +148,13 @@ function layout(site, { route, title, body, lightbox, meta }) {
 `.value;
 }
 
-// ---- 各頁的內容，對應 web/src/views ----
-const emptyStatus = (text) => html`<div class="list-status"><p>${text}</p></div>`;
-
-const articleBody = (text, u, extraClass = '') => html`<div class="article__body${extraClass}"><div class="article__chunk">${localizeHtml(text, u)}</div></div>`;
-
-function announcementList(items, u) {
-  return groupByYear(items).map((group) => html`
-    <div class="announcement-year">
-      <p class="announcement-year__label">${group.year} 年</p>
-      <ol class="announcement-list">
-        ${group.items.map((item) => html`
-        <li>
-          <time class="date__day" datetime="${item.publishedAt}" aria-label="${rocDateText(item.publishedAt)}">${monthDayText(item.publishedAt)}</time>
-          <div>
-            <a href="${u.to(`/announcements/${item.id}`)}">${item.title}</a>
-            ${wasEdited(item) && html`<small class="edited edited--short">(編輯於 ${rocShortDate(item.modifiedAt)})</small>`}
-          </div>
-        </li>`)}
-      </ol>
-    </div>`);
-}
-
-function albumGrid(albums, u) {
-  if (!albums.length) return '';
-  return html`<ul class="album-grid">${albums.map((album) => {
-    const title = parseAlbum(album.name);
-    return html`
-    <li>
-      <div class="album-card__cover"><img src="${u.local(album.photos[0].url)}" alt="" loading="lazy" decoding="async" /></div>
-      ${title.term && html`<p class="term">${title.term}</p>`}
-      <h3><a href="${u.to(`/photos/${album.id}`)}">${title.name}</a></h3>
-      <p class="album-card__meta"><time datetime="${album.eventDate}">${rocDateText(album.eventDate)}</time>，${album.photos.length} 張</p>
-    </li>`;
-  })}</ul>`;
-}
-
-function albumHeader(album, u, { heading = 'h1', id = null, linked = false } = {}) {
-  const title = parseAlbum(album.name);
-  const name = linked ? html`<a href="${u.to(`/photos/${album.id}`)}">${title.name}</a>` : title.name;
-  return html`
-    <header class="album-head">
-      <div>
-        ${title.term && html`<p class="term">${title.term}</p>`}
-        ${raw(`<${heading}${id ? ` id="${id}"` : ''} class="stop">`)}${name}${raw(`</${heading}>`)}
-        <p class="article__date">活動日期：<time datetime="${album.eventDate}">${rocDateText(album.eventDate)}</time>，${album.photos.length} 張</p>
-        ${wasEdited(album) && html`<small class="edited edited--short">(編輯於 ${rocShortDate(album.modifiedAt)})</small>`}
-      </div>
-    </header>`;
-}
-
-const photoGrid = (photos, u) => html`
-  <ul class="photo-grid">
-    ${photos.map((photo) => html`
-    <li>
-      ${u.mode === 'site'
-    ? html`<a class="photo-grid__open" href="${photo.url}" aria-label="開啟照片：${photo.alt}"><img src="${photo.url}" alt="${photo.alt}" loading="lazy" decoding="async" /></a>`
-    : html`<button type="button" class="photo-grid__open" aria-label="放大照片：${photo.alt}" data-src="${u.local(photo.url)}" data-alt="${photo.alt}">
-        <img src="${u.local(photo.url)}" alt="${photo.alt}" loading="lazy" decoding="async" />
-      </button>`}
-    </li>`)}
-  </ul>`;
-
+// ---- 各頁的內容，對應 web/src/views；擴充功能的頁面在 src/extensions/<名稱>/static.js ----
 const DOTS = Array.from({ length: 9 * 7 }, (_, i) => Math.round(Math.hypot(i % 9, 6 - Math.floor(i / 9))));
 
+/** 首頁：主視覺，加上各擴充功能的首頁區塊 */
 function homePage(site) {
-  const { config, images, announcements, albums } = site;
+  const { config, images } = site;
+  const sections = site.extensions.filter(({ staticSite }) => staticSite.home);
   return page('/', '', (u) => html`
     <section class="hero" aria-labelledby="site-title">
       <div class="hero__text">
@@ -295,103 +169,10 @@ function homePage(site) {
         <img src="${u.local(images.campusUrl)}" width="841" height="559" fetchpriority="high" alt="${config.campusAlt}" />
       </div>
     </section>
-    <div class="page">
-      <section aria-labelledby="home-news">
-        <div class="section-head stop">
-          <h2 id="home-news">最新消息</h2>
-          ${announcements.length > 0 && html`<a href="${u.to('/announcements')}">查看所有消息</a>`}
-        </div>
-        ${announcementList(announcements.slice(0, HOME_ANNOUNCEMENTS), u)}
-        ${!announcements.length && emptyStatus('目前沒有新消息。')}
-      </section>
-      <section aria-labelledby="home-photos">
-        <div class="section-head stop">
-          <h2 id="home-photos">活動剪影</h2>
-          ${albums.length > 0 && html`<a href="${u.to('/photos')}">查看所有相簿</a>`}
-        </div>
-        ${albumGrid(albums.slice(0, HOME_ALBUMS), u)}
-        ${!albums.length && emptyStatus('目前沒有相簿。')}
-      </section>
-    </div>`);
+    ${sections.length > 0 && html`<div class="page">
+      ${sections.map(({ key, staticSite }) => staticSite.home(site.data[key])(u))}
+    </div>`}`);
 }
-
-const announcementsPage = (site) => page('/announcements', '最新消息', (u) => html`
-  <div class="page">
-    <h1 class="stop">最新消息</h1>
-    <div>
-      ${announcementList(site.announcements, u)}
-      ${!site.announcements.length && emptyStatus('目前沒有新消息。')}
-    </div>
-  </div>`);
-
-function announcementPage(item) {
-  const info = [
-    ['公告單位', item.unit || '—'],
-    ['瀏覽人次', item.views],
-    ['公告日期', html`<time datetime="${item.publishedAt}">${rocShortDate(item.publishedAt)}</time>`],
-    ['截止日期', item.deadline ? html`<time datetime="${item.deadline}">${rocShortDate(item.deadline)}</time>` : '—'],
-    ['聯絡人', item.contactPerson || '—'],
-    ['分機', item.extension || '—'],
-  ];
-  return page(`/announcements/${item.id}`, item.title, (u) => html`
-    <div class="page">
-      <a class="back-link" href="${u.to('/announcements')}">回到最新消息</a>
-      <article class="article">
-        <p class="announcement__label">公告標題</p>
-        <h1 class="stop">${item.title}</h1>
-        <dl class="announcement-info">
-          ${info.map(([label, value]) => html`<div><dt>${label}</dt><dd>${value}</dd></div>`)}
-        </dl>
-        <h2 class="announcement__body-title">詳細內容</h2>
-        ${articleBody(renderAnnouncement(item), u)}
-        ${wasEdited(item) && html`<small class="edited">編輯於 ${rocDateTimeText(item.modifiedAt)}</small>`}
-      </article>
-    </div>`);
-}
-
-const albumsPage = (site) => page('/photos', '活動剪影', (u) => html`
-  <div class="page">
-    <h1 class="stop">活動剪影</h1>
-    <div>
-      ${site.albums.map((album) => html`
-      <section class="album-section" aria-labelledby="album-${album.id}">
-        ${albumHeader(album, u, { heading: 'h2', id: `album-${album.id}`, linked: true })}
-        <div class="album-section__photos">
-          ${photoGrid(album.photos.slice(0, SECTION_PHOTOS), u)}
-          ${album.photos.length > SECTION_PHOTOS && html`<p><a href="${u.to(`/photos/${album.id}`)}">查看全部 ${album.photos.length} 張照片</a></p>`}
-        </div>
-      </section>`)}
-      ${!site.albums.length && emptyStatus('目前沒有相簿。')}
-    </div>
-  </div>`, { lightbox: true });
-
-const albumPage = (album) => page(`/photos/${album.id}`, parseAlbum(album.name).name, (u) => html`
-  <div class="page">
-    <a class="back-link" href="${u.to('/photos')}">回到所有相簿</a>
-    ${albumHeader(album, u)}
-    <div>${photoGrid(album.photos, u)}</div>
-  </div>`, { lightbox: true });
-
-const documentsPage = (site) => page('/documents', '文件下載', (u) => html`
-  <div class="page">
-    <h1 class="stop">文件下載</h1>
-    <div>
-      ${groupDocuments(site.documents).map(([name, documents]) => html`
-      <section class="document-group">
-        <div class="document-group__head"><h2>${name}</h2></div>
-        <ul class="document-list">
-          ${documents.map((item) => html`
-          <li>
-            <div class="document-list__main">
-              <a href="${u.local(item.url)}" download="${item.filename}">${item.title}</a>
-              <small class="edited">${item.filename.split('.').pop().toUpperCase()}，${fileSizeText(item.size)}</small>
-            </div>
-          </li>`)}
-        </ul>
-      </section>`)}
-      ${!site.documents.length && emptyStatus('目前沒有文件。')}
-    </div>
-  </div>`);
 
 const contentPage = (item) => page(pagePath(item), item.title, (u) => html`
   <div class="page">
@@ -400,79 +181,42 @@ const contentPage = (item) => page(pagePath(item), item.title, (u) => html`
   </div>`);
 
 // ---- 讀取資料與組合檔案 ----
+/** 網站設定、頁面、選單，以及啟用中的擴充功能各自的資料（site.data[代號]） */
 async function loadSite(db, storage) {
   const config = await db.prepare('SELECT * FROM site_config').get();
   const images = Object.fromEntries(Object.entries(DEFAULT_IMAGES).map(([field, fallback]) => [field, config[field] ?? fallback]));
-  const announcements = await db.prepare(`
-    SELECT * FROM announcements WHERE published_at <= now() ORDER BY published_at DESC, id DESC
-  `).all();
-  const albums = await db.prepare(`
-    SELECT * FROM albums a WHERE EXISTS (SELECT 1 FROM photos p WHERE p.album_id = a.id) ORDER BY event_date DESC, id DESC
-  `).all();
-  const photos = await db.prepare('SELECT * FROM photos WHERE album_id IS NOT NULL ORDER BY id DESC').all();
-  for (const album of albums) {
-    album.photos = photos.filter((photo) => photo.albumId === album.id).map((photo) => ({ ...photo, url: storage.displayUrlOf(photo) }));
-  }
-  const documents = (await db.prepare('SELECT * FROM documents ORDER BY id DESC').all())
-    .map((row) => ({ ...row, url: storage.urlOf(row) }));
   const pages = await db.prepare('SELECT * FROM pages ORDER BY slug').all();
-  // 下一則預約發布的公告：到時候公開內容會改變
-  const { next } = await db.prepare('SELECT min(published_at) AS next FROM announcements WHERE published_at > now()').get();
+  const extensions = (await enabledExtensions(db)).filter((extension) => extension.staticSite);
+  const data = {};
+  for (const { key, staticSite } of extensions) data[key] = await staticSite.load({ db, storage });
+  // 擴充功能的內容下一次改變的時間（例如預約發布的公告）
+  const nextChange = Object.values(data).map((value) => value.nextChange).filter(Boolean).sort()[0] ?? null;
   return {
-    config, images, announcements, albums, documents, pages, navigation: await readNavigation(db), year: new Date().getFullYear(), nextChange: next,
+    config, images, pages, extensions, data, navigation: await readNavigation(db), year: new Date().getFullYear(), nextChange,
   };
 }
 
-const siteDescription = ({ config }) => excerpt(
-  `${config.siteTitle}的最新消息、活動剪影與文件下載。${config.heroText ? `${config.heroText}。` : ''}聯絡電話 ${config.phone}${config.extension ? ` ${config.extension}` : ''}。`,
-);
+/** 「a」「a與b」「a、b與c」 */
+const listText = (items) => (items.length > 1 ? `${items.slice(0, -1).join('、')}與${items.at(-1)}` : items.join(''));
 
-const HOME_CRUMB = { name: '首頁', route: '/' };
+const siteDescription = ({ config, extensions }) => excerpt(
+  `${config.siteTitle}${extensions.length ? `的${listText(extensions.map((extension) => extension.label))}` : ''}。${config.heroText ? `${config.heroText}。` : ''}聯絡電話 ${config.phone}${config.extension ? ` ${config.extension}` : ''}。`,
+);
 
 /**
  * 每頁的資料：description、image、type（website、article、gallery、page）、published、modified、
  * breadcrumb（麵包屑）、text（給 AI 的全文），見 src/http/seo.js
  */
 function homeMeta(site) {
+  const extensionDates = site.extensions.flatMap(({ key, staticSite }) => staticSite.homeModified?.(site.data[key]) ?? []);
   return {
     name: site.config.siteTitle,
     description: siteDescription(site),
     image: site.images.campusUrl,
     type: 'website',
-    modified: latest([...site.announcements.map((a) => a.modifiedAt), ...site.pages.map((p) => p.updatedAt)]),
+    modified: latest([...extensionDates, ...site.pages.map((p) => p.updatedAt)]),
     breadcrumb: [],
     text: '',
-  };
-}
-
-function announcementMeta(item) {
-  const markup = renderAnnouncement(item);
-  const info = [item.unit && `公告單位：${item.unit}`, item.contactPerson && `聯絡人：${item.contactPerson}`, item.extension && `分機：${item.extension}`]
-    .filter(Boolean).join('，');
-  return {
-    name: item.title,
-    description: excerpt(textOf(markup)) || item.title,
-    image: firstImage(markup),
-    type: 'article',
-    published: item.publishedAt,
-    modified: item.modifiedAt,
-    breadcrumb: [HOME_CRUMB, { name: '最新消息', route: '/announcements' }],
-    text: [info, textOf(markup)].filter(Boolean).join('\n'),
-  };
-}
-
-function albumMeta(album) {
-  const title = parseAlbum(album.name);
-  return {
-    name: title.name,
-    description: `${title.term ? `${title.term} ` : ''}${title.name}，活動日期${rocDateText(album.eventDate)}，共 ${album.photos.length} 張照片。`,
-    image: album.photos[0]?.url ?? null,
-    images: album.photos.slice(0, 20).map((photo) => ({ url: photo.url, alt: photo.alt })),
-    type: 'gallery',
-    published: album.eventDate,
-    modified: album.modifiedAt,
-    breadcrumb: [HOME_CRUMB, { name: '活動剪影', route: '/photos' }],
-    text: album.photos.map((photo) => photo.alt).join('、'),
   };
 }
 
@@ -490,27 +234,10 @@ function contentMeta(item) {
   };
 }
 
-const listMeta = (name, description, modified, image = null) => ({
-  name, description, image, type: 'page', modified, breadcrumb: [HOME_CRUMB], text: '',
-});
-
-/** 網站所有的公開頁面，各自帶有 meta（見上） */
+/** 網站所有的公開頁面，各自帶有 meta（見上）；擴充功能的頁面由各自的 staticSite.pages 提供 */
 const allPages = (site) => [
   { ...homePage(site), meta: homeMeta(site) },
-  {
-    ...announcementsPage(site),
-    meta: listMeta('最新消息', `${site.config.siteTitle}的最新消息，共 ${site.announcements.length} 則公告。`, latest(site.announcements.map((a) => a.modifiedAt))),
-  },
-  ...site.announcements.map((item) => ({ ...announcementPage(item), meta: announcementMeta(item) })),
-  {
-    ...albumsPage(site),
-    meta: listMeta('活動剪影', `${site.config.siteTitle}的活動剪影，共 ${site.albums.length} 本相簿。`, latest(site.albums.map((a) => a.modifiedAt)), site.albums[0]?.photos[0]?.url),
-  },
-  ...site.albums.map((album) => ({ ...albumPage(album), meta: albumMeta(album) })),
-  {
-    ...documentsPage(site),
-    meta: listMeta('文件下載', `${site.config.siteTitle}的文件下載，共 ${site.documents.length} 份文件，包含申請表與紀錄表等表單。`, latest(site.documents.map((d) => d.createdAt))),
-  },
+  ...site.extensions.flatMap(({ key, staticSite }) => staticSite.pages(site, site.data[key])),
   ...site.pages.map((item) => ({ ...contentPage(item), meta: contentMeta(item) })),
 ];
 
@@ -543,7 +270,10 @@ export async function renderNoscriptPages({ db, storage }) {
       hours: config.hours,
       contactTitle: config.footerTitle,
       teachers: config.teachers,
-      documents: site.documents.map((doc) => ({ title: doc.title, category: doc.category, url: doc.url, filename: doc.filename })),
+      documents: [],
+      // 擴充功能另外提供的資訊，例如文件清單
+      ...Object.assign({}, ...site.extensions.map(({ key, staticSite }) => staticSite.info?.(site.data[key]) ?? {})),
+      extensionPaths: site.extensions.map((extension) => extension.path),
     },
     theme: { mode, colors: site.config[`${mode}Theme`] },
     nextChange: site.nextChange ? new Date(site.nextChange) : null,

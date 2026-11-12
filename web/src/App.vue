@@ -5,6 +5,8 @@ import { can, currentUser, logout, notice } from './api.js';
 import LoginDialog from './components/LoginDialog.vue';
 import SiteFooter from './components/SiteFooter.vue';
 import UserSettings from './components/UserSettings.vue';
+import { isDisabledRoute } from './router.js';
+import NotFound from './views/NotFound.vue';
 import { DEFAULT_NAVIGATION, mapMenus, menuLink } from './navigation.js';
 import { navigation, siteConfig, siteImage } from './siteConfig.js';
 import { themeMode, toggleTheme } from './theme.js';
@@ -87,6 +89,7 @@ async function signOut() {
         <ul v-show="accountOpen" id="account-menu" class="dropdown__menu" aria-label="帳號選單">
           <li><RouterLink to="/pages" active-class="is-current">所有頁面</RouterLink></li>
           <li v-if="can('MANAGE_SITE_CONFIG')"><RouterLink to="/settings" active-class="is-current">網站設定</RouterLink></li>
+          <li v-if="can('MANAGE_SITE_CONFIG')"><RouterLink to="/extensions" active-class="is-current">擴充功能</RouterLink></li>
           <li><button type="button" @click="openSettings">帳號設定</button></li>
           <li><button type="button" @click="signOut">登出</button></li>
         </ul>
@@ -144,7 +147,10 @@ async function signOut() {
   </header>
 
   <main id="main" tabindex="-1">
-    <RouterView />
+    <RouterView v-slot="{ Component, route: current }">
+      <NotFound v-if="isDisabledRoute(current)" />
+      <component :is="Component" v-else />
+    </RouterView>
   </main>
 
   <SiteFooter />

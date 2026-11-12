@@ -37,6 +37,7 @@ const CONSTRAINT_MESSAGES = {
   navigation_links_page_slug_fkey: '頁首選單裡有不存在的頁面',
   navigation_links_page_slug_key: '同一個頁面或功能只能出現一次',
   navigation_links_service_key: '同一個頁面或功能只能出現一次',
+  extensions_key_check: '擴充功能的代號只能是英文大寫、數字與底線',
 };
 
 const INVALID_VALUE_MESSAGES = {

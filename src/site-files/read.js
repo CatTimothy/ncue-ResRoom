@@ -79,6 +79,7 @@ export async function readSite(source) {
     config: await json('site-config.json', null),
     navigation: await json('navigation.json', null),
     visits: await json('visits.json', []),
+    extensions: await json('extensions.json', {}),
     pages,
     announcements,
     albums,

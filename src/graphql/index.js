@@ -1,14 +1,12 @@
 import { getOperationAST } from 'graphql';
 import { createSchema, createYoga } from 'graphql-yoga';
-import { albumsTypeDefs, createAlbumsResolvers } from './albums.js';
-import { announcementsTypeDefs, createAnnouncementsResolvers } from './announcements.js';
+import { EXTENSIONS } from '../extensions/index.js';
 import { authTypeDefs, createAuthResolvers } from './auth.js';
 import { contentImagesTypeDefs, createContentImagesResolvers } from './content-images.js';
-import { createDocumentsResolvers, documentsTypeDefs } from './documents.js';
+import { createExtensionsResolvers, extensionsTypeDefs, guardExtension } from './extensions.js';
 import { createNavigationResolvers, navigationTypeDefs } from './navigation.js';
 import { createSiteConfigResolvers, siteConfigTypeDefs } from './site-config.js';
 import { createPagesResolvers, pagesTypeDefs } from './pages.js';
-import { createPhotosResolvers, photosTypeDefs } from './photos.js';
 import { createVisitsResolvers, visitsTypeDefs } from './visits.js';
 
 const rootTypeDefs = /* GraphQL */ `
@@ -25,7 +23,8 @@ const rootTypeDefs = /* GraphQL */ `
 
 // 不會改變公開內容的 mutation；其他 mutation 執行後呼叫 onContentChange（重新產生沒有 JavaScript 時的頁面）
 const NON_CONTENT_MUTATIONS = new Set([
-  'login', 'logout', 'changePassword', 'createUser', 'setUserPermissions', 'recordVisit', 'recordAnnouncementView',
+  'login', 'logout', 'changePassword', 'createUser', 'setUserPermissions', 'recordVisit',
+  ...EXTENSIONS.flatMap((extension) => extension.passiveMutations ?? []),
 ]);
 
 /** Yoga 的 plugin：會改變內容的 mutation 執行完後通知 */
@@ -47,26 +46,22 @@ export function createGraphQLHandler({ db, storage, sessions, production, allowe
         rootTypeDefs,
         authTypeDefs,
         pagesTypeDefs,
-        announcementsTypeDefs,
-        albumsTypeDefs,
-        photosTypeDefs,
-        documentsTypeDefs,
+        ...EXTENSIONS.flatMap((extension) => extension.typeDefs),
         contentImagesTypeDefs,
         visitsTypeDefs,
         siteConfigTypeDefs,
         navigationTypeDefs,
+        extensionsTypeDefs,
       ],
       resolvers: [
         createAuthResolvers(deps),
         createPagesResolvers(deps),
-        createAnnouncementsResolvers(deps),
-        createAlbumsResolvers(deps),
-        createPhotosResolvers(deps),
-        createDocumentsResolvers(deps),
+        ...EXTENSIONS.flatMap((extension) => extension.createResolvers.map((create) => guardExtension(db, extension, create(deps)))),
         createContentImagesResolvers(deps),
         createVisitsResolvers(deps),
         createSiteConfigResolvers(deps),
         createNavigationResolvers(deps),
+        createExtensionsResolvers(deps),
       ],
     }),
     context: ({ request }) => sessions.current(request.headers.get('cookie')),

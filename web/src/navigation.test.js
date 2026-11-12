@@ -39,3 +39,9 @@ test('移動連結：同一列換位置、換到另一列，或從選單移除',
   assert.deepEqual(moveLink(keys, 'page:a', 'utility', 99).utility, ['HOME', 'PHOTOS', 'page:a']);
   assert.deepEqual(keys.utility, ['HOME', 'PHOTOS'], '不改動原本的排列');
 });
+
+test('停用的擴充功能不列在可以放進選單的連結裡', () => {
+  const links = allLinks([{ slug: 'a', title: 'A', root: true }], ['HOME', 'PHOTOS']);
+  assert.deepEqual([...links.keys()], ['HOME', 'PHOTOS', 'page:a']);
+  assert.ok(allLinks([]).has('DOCUMENTS'), '沒有指定時列出所有功能');
+});

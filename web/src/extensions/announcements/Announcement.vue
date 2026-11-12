@@ -1,15 +1,15 @@
 <script setup>
 import { ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
-import { can, deleteAnnouncement, fetchAnnouncement, fetchAnnouncementSource, recordAnnouncementView, saveAnnouncement } from '../api.js';
-import { replaceImageAlt } from '../articleSegments.js';
-import AnnouncementEditor from '../components/AnnouncementEditor.vue';
-import ArticleBody from '../components/ArticleBody.vue';
-import ItemStatus from '../components/ItemStatus.vue';
-import { deleteQuestion, isScheduled, rocDateTimeText, rocShortDate, wasEdited } from '../format.js';
-import { confirmDelete } from '../page.js';
-import { useCachedItem } from '../useCachedItem.js';
-import { useEditMode } from '../useEditMode.js';
+import { can, deleteAnnouncement, fetchAnnouncement, fetchAnnouncementSource, recordAnnouncementView, saveAnnouncement } from '../../api.js';
+import { replaceImageAlt } from '../../articleSegments.js';
+import AnnouncementEditor from './AnnouncementEditor.vue';
+import ArticleBody from '../../components/ArticleBody.vue';
+import ItemStatus from '../../components/ItemStatus.vue';
+import { deleteQuestion, isScheduled, rocDateTimeText, rocShortDate, wasEdited } from '../../format.js';
+import { confirmDelete } from '../../page.js';
+import { useCachedItem } from '../../useCachedItem.js';
+import { useEditMode } from '../../useEditMode.js';
 
 const props = defineProps({ id: { type: String, required: true } });
 

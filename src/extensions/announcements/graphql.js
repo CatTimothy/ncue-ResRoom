@@ -1,7 +1,7 @@
-import { renderAnnouncement } from '../lib/content.js';
-import { fail } from '../lib/errors.js';
-import { hasPermission, withPermission } from '../lib/guards.js';
-import { paging, searchCondition, searchParams, visible } from '../lib/search.js';
+import { renderAnnouncement } from '../../lib/content.js';
+import { fail } from '../../lib/errors.js';
+import { hasPermission, withPermission } from '../../lib/guards.js';
+import { paging, searchCondition, searchParams, visible } from '../../lib/search.js';
 
 export const announcementsTypeDefs = /* GraphQL */ `
   type Announcement {

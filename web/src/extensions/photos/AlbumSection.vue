@@ -1,9 +1,9 @@
 <script setup>
 import { onBeforeUnmount, onMounted, ref, useId, useTemplateRef } from 'vue';
-import { deleteAlbum } from '../api.js';
-import { albumPhotosKey, cache } from '../cache.js';
-import { albumDeleteQuestion } from '../format.js';
-import { confirmDelete } from '../page.js';
+import { deleteAlbum } from '../../api.js';
+import { albumPhotosKey, cache } from '../../cache.js';
+import { albumDeleteQuestion } from '../../format.js';
+import { confirmDelete } from '../../page.js';
 import AlbumHeader from './AlbumHeader.vue';
 import AlbumPhotos from './AlbumPhotos.vue';
 

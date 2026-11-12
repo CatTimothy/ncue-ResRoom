@@ -813,6 +813,96 @@ test('old navigation paths in site config are moved to the navigation table', as
   }
 });
 
+const EXTENSIONS_QUERY = '{ extensions { key label path system enabled } }';
+const SET_EXTENSION = 'mutation ($key: String!, $enabled: Boolean!) { setExtensionEnabled(key: $key, enabled: $enabled) { key enabled } }';
+
+test('extensions can be disabled and enabled: their API, menu links and pages are hidden but the content is kept', async () => {
+  const site = await start();
+  try {
+    const { headers } = await login(USER.username, USER.password, site.base);
+    const call = async (query, variables, as = headers) => (await post(site.base, query, variables, as)).json();
+
+    const { extensions } = (await call(EXTENSIONS_QUERY, {}, {})).data;
+    assert.deepEqual(extensions.map(({ key, path, system, enabled }) => [key, path, system, enabled]), [
+      ['ANNOUNCEMENTS', '/announcements', true, true], ['PHOTOS', '/photos', true, true], ['DOCUMENTS', '/documents', true, true],
+    ]);
+
+    assert.equal((await call(SET_EXTENSION, { key: 'DOCUMENTS', enabled: false }, {})).errors[0].extensions.code, 'UNAUTHENTICATED');
+    assert.match((await call(SET_EXTENSION, { key: 'NOPE', enabled: false })).errors[0].message, /找不到/);
+
+    await call(SAVE_NAVIGATION, { input: { utility: [{ service: 'HOME' }, { service: 'DOCUMENTS' }], main: [{ service: 'ANNOUNCEMENTS' }] } });
+    const announcement = (await call(SAVE_ANNOUNCEMENT, { title: '停用前的公告', content: '內容' })).data.saveAnnouncement;
+
+    assert.deepEqual((await call(SET_EXTENSION, { key: 'DOCUMENTS', enabled: false })).data.setExtensionEnabled, { key: 'DOCUMENTS', enabled: false });
+    assert.equal((await call(SET_EXTENSION, { key: 'ANNOUNCEMENTS', enabled: false })).data.setExtensionEnabled.enabled, false);
+
+    // API 回傳錯誤，選單不列出，沒有 JavaScript 時的頁面也沒有
+    const disabled = await call('{ documents { id } }', {}, {});
+    assert.equal(disabled.errors[0].extensions.code, 'EXTENSION_DISABLED');
+    assert.match(disabled.errors[0].message, /文件下載/);
+    assert.equal((await call(SAVE_ANNOUNCEMENT, { title: 'x', content: 'x' })).errors[0].extensions.code, 'EXTENSION_DISABLED');
+    let { navigation } = (await call(NAVIGATION, {}, {})).data;
+    assert.deepEqual([slugsOf(navigation.utility), slugsOf(navigation.main)], [['HOME'], []]);
+    await site.noscript.refresh();
+    assert.equal((await site.noscript.get('/documents')).page, null);
+    assert.equal((await site.noscript.get(`/announcements/${announcement.id}`)).page, null);
+    assert.ok((await site.noscript.get('/photos')).page);
+    assert.doesNotMatch((await site.noscript.get('/')).page.body, /home-news/);
+
+    // 停用時儲存選單，原本的連結保留；重新啟用後回到原本的位置
+    await call(SAVE_NAVIGATION, { input: { utility: [{ service: 'HOME' }], main: [{ service: 'PHOTOS' }] } });
+    await call(SET_EXTENSION, { key: 'DOCUMENTS', enabled: true });
+    ({ navigation } = (await call(NAVIGATION, {}, {})).data);
+    assert.deepEqual([slugsOf(navigation.utility), slugsOf(navigation.main)], [['HOME', 'DOCUMENTS'], ['PHOTOS']]);
+
+    // 已經不在選單上的功能，啟用時加到主選單的最後；內容還在
+    await call(SAVE_NAVIGATION, { input: { utility: [{ service: 'HOME' }], main: [{ service: 'PHOTOS' }] } });
+    await site.db.prepare("DELETE FROM navigation_links WHERE service = 'ANNOUNCEMENTS'").run();
+    await call(SET_EXTENSION, { key: 'ANNOUNCEMENTS', enabled: true });
+    ({ navigation } = (await call(NAVIGATION, {}, {})).data);
+    assert.deepEqual(slugsOf(navigation.main), ['PHOTOS', 'ANNOUNCEMENTS']);
+    assert.equal((await call('query ($id: ID!) { announcement(id: $id) { title } }', { id: announcement.id }, {})).data.announcement.title, '停用前的公告');
+
+    // 網站資料的輸出包含啟用狀態
+    await call(SET_EXTENSION, { key: 'PHOTOS', enabled: false });
+    const { exportSiteFiles } = await import('../src/site-files/export.js');
+    const files = await exportSiteFiles({ db: site.db, storage: createStorage({ db: site.db, dataDir: site.dataDir }) });
+    const states = JSON.parse(files.find((file) => file.name === 'extensions.json').data);
+    assert.deepEqual(states, { DOCUMENTS: true, ANNOUNCEMENTS: true, PHOTOS: false });
+  } finally {
+    await site.stop();
+  }
+});
+
+test('the old nav_service enum column becomes text', async () => {
+  const database = await createDatabase();
+  try {
+    await (await openDb(database.url)).close();
+    const client = new pg.Client({ connectionString: database.url });
+    await client.connect();
+    await client.query(`
+      CREATE TYPE nav_service AS ENUM ('HOME', 'ANNOUNCEMENTS', 'PHOTOS', 'DOCUMENTS');
+      ALTER TABLE navigation_links ALTER COLUMN service TYPE nav_service USING service::nav_service;
+    `);
+    await client.end();
+
+    const db = await openDb(database.url);
+    try {
+      const column = await db.prepare(`
+        SELECT data_type FROM information_schema.columns WHERE table_name = 'navigation_links' AND column_name = 'service'
+      `).get();
+      assert.equal(column.dataType, 'text');
+      const rows = await db.prepare('SELECT service FROM navigation_links ORDER BY menu, position').all();
+      assert.deepEqual(rows.map((row) => row.service), ['HOME', 'ANNOUNCEMENTS', 'PHOTOS']);
+      assert.equal(await db.prepare("SELECT 1 FROM pg_type WHERE typname = 'nav_service'").get(), undefined);
+    } finally {
+      await db.close();
+    }
+  } finally {
+    await dropDatabase(database.name);
+  }
+});
+
 test('old key-value site config is moved to the new table', async () => {
   const database = await createDatabase();
   const client = new pg.Client({ connectionString: database.url });

@@ -1,9 +1,9 @@
 <script setup>
 import { computed, ref } from 'vue';
-import { setDocumentsCategory, updateDocument, uploadDocuments } from '../api.js';
-import { DOCUMENT_ACCEPT, MAX_DOCUMENT_TITLE_LENGTH, normalizeCategory, parseDocumentName } from '../format.js';
-import { useEditor } from '../useEditor.js';
-import EditorDialog from './EditorDialog.vue';
+import { setDocumentsCategory, updateDocument, uploadDocuments } from '../../api.js';
+import { DOCUMENT_ACCEPT, MAX_DOCUMENT_TITLE_LENGTH, normalizeCategory, parseDocumentName } from '../../format.js';
+import { useEditor } from '../../useEditor.js';
+import EditorDialog from '../../components/EditorDialog.vue';
 
 const emit = defineEmits(['batchSaved']);
 

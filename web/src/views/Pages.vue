@@ -1,5 +1,5 @@
 <script setup>
-import { watch } from 'vue';
+import { computed, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { can, deletePage, fetchPages, saveNavigation } from '../api.js';
 import ItemStatus from '../components/ItemStatus.vue';
@@ -8,7 +8,7 @@ import PageEditor from '../components/PageEditor.vue';
 import { linkInput, mapMenus, navigationKeys, pagePath, SERVICES } from '../navigation.js';
 import { rocDateTimeText } from '../format.js';
 import { confirmDelete } from '../page.js';
-import { navigation } from '../siteConfig.js';
+import { isExtensionEnabled, navigation } from '../siteConfig.js';
 import { useCachedItem } from '../useCachedItem.js';
 import { useEditMode, useLeaveGuard } from '../useEditMode.js';
 import { useEditor } from '../useEditor.js';
@@ -17,6 +17,9 @@ const router = useRouter();
 const { active: creating, close } = useEditMode('MANAGE_PAGES', 'new');
 const state = useCachedItem(() => 'pages', fetchPages);
 const { item: pages } = state;
+
+/** 可以放進選單、列在「網站功能」的：首頁與啟用中的擴充功能 */
+const services = computed(() => Object.keys(SERVICES).filter((key) => key === 'HOME' || isExtensionEnabled(key)));
 
 const remove = (page) => confirmDelete(`確定要刪除頁面「${page.title}」嗎？`, () => deletePage(page.slug));
 
@@ -46,7 +49,7 @@ const saveMenus = () => run(async () => {
         <h2 id="nav-title" class="settings-group__title">頁首選單</h2>
         <p v-if="!form.navigation" class="loading">載入中…</p>
         <template v-else>
-          <NavEditor v-model="form.navigation" :pages="pages ?? []" />
+          <NavEditor v-model="form.navigation" :pages="pages ?? []" :services="services" />
           <p v-if="error" role="alert" class="notice notice--error">{{ error }}</p>
           <div class="editor__actions">
             <button type="button" class="button button--quiet" :disabled="busy || !changed" @click="restore">還原</button>
@@ -57,11 +60,14 @@ const saveMenus = () => run(async () => {
 
       <section class="settings-group pages-section" aria-labelledby="services-title">
         <h2 id="services-title" class="settings-group__title">網站功能</h2>
+        <div v-if="can('MANAGE_SITE_CONFIG')" class="admin-bar">
+          <RouterLink class="button button--small button--quiet" to="/extensions">管理擴充功能</RouterLink>
+        </div>
         <ul class="document-list">
-          <li v-for="(service, key) in SERVICES" :key="key">
+          <li v-for="key in services" :key="key">
             <div class="document-list__main">
-              <RouterLink :to="service.to">{{ service.label }}</RouterLink>
-              <small class="edited">{{ service.to }}</small>
+              <RouterLink :to="SERVICES[key].to">{{ SERVICES[key].label }}</RouterLink>
+              <small class="edited">{{ SERVICES[key].to }}</small>
             </div>
           </li>
         </ul>

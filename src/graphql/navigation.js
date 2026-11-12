@@ -1,13 +1,14 @@
+import { EXTENSIONS } from '../extensions/index.js';
+import { enabledExtensionKeys } from '../extensions/state.js';
 import { withPermission } from '../lib/guards.js';
 
+/** 選單可以連到的網站功能：首頁與每個擴充功能 */
+export const NAV_SERVICES = ['HOME', ...EXTENSIONS.map(({ key }) => key)];
+
 export const navigationTypeDefs = /* GraphQL */ `
-  "頁首選單可以連到的網站功能"
+  "頁首選單可以連到的網站功能：HOME 是首頁 /，其他是擴充功能（見 Extension）"
   enum NavService {
-    "首頁 /"
-    HOME
-    ANNOUNCEMENTS
-    PHOTOS
-    DOCUMENTS
+    ${NAV_SERVICES.join(' ')}
   }
 
   "選單上的頁面，只有連結需要的欄位"
@@ -60,18 +61,31 @@ const LIST = `
   ORDER BY n.menu, n.position
 `;
 
-/** 整份取代頁首選單；navigation 是 { utility, main }，每項是 { page } 或 { service } */
+/**
+ * 整份取代頁首選單；navigation 是 { utility, main }，每項是 { page } 或 { service }。
+ * 停用中的擴充功能不在畫面上，原本的連結接在同一列的最後保留下來
+ */
 export async function writeNavigation(db, navigation) {
-  const links = Object.entries(MENUS).flatMap(([menu, key]) => navigation[key].map(({ page = null, service = null }, position) => (
-    { menu, position, page_slug: page, service }
-  )));
+  const enabled = await enabledExtensionKeys(db);
+  const listed = new Set([...navigation.utility, ...navigation.main].map((link) => link.service).filter(Boolean));
+  const hidden = (await db.prepare('SELECT menu, service FROM navigation_links WHERE service IS NOT NULL ORDER BY position').all())
+    .filter(({ service }) => service !== 'HOME' && !enabled.has(service) && !listed.has(service));
+  const links = Object.entries(MENUS).flatMap(([menu, key]) => [
+    ...navigation[key],
+    ...hidden.filter((link) => link.menu === menu).map(({ service }) => ({ service })),
+  ].map(({ page = null, service = null }, position) => ({ menu, position, page_slug: page, service })));
   await db.prepare('SELECT save_navigation($1)').run(JSON.stringify(links));
 }
 
-/** 目前的頁首選單 { utility, main }，每項是 { service, page: { slug, title } | null } */
+/**
+ * 目前的頁首選單 { utility, main }，每項是 { service, page: { slug, title } | null }。
+ * 停用或已移除的擴充功能不列出，資料庫裡的連結保留，重新啟用時回到原本的位置
+ */
 export async function readNavigation(db) {
+  const enabled = await enabledExtensionKeys(db);
   const result = { utility: [], main: [] };
   for (const { menu, service, slug, title, root } of await db.prepare(LIST).all()) {
+    if (service && service !== 'HOME' && !enabled.has(service)) continue;
     result[MENUS[menu]].push({ service, page: slug ? { slug, title, root } : null });
   }
   return result;

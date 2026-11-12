@@ -147,7 +147,7 @@ function llmsTxt(snapshot, origin) {
   const { site } = snapshot;
   const link = (page) => `- [${page.name}](${origin}${page.route}): ${page.description}`;
   const sections = [
-    ['頁面', pagesOfType(snapshot, (p) => p.type === 'page' && p.breadcrumb.length === 1 && !['/announcements', '/photos', '/documents'].includes(p.route))],
+    ['頁面', pagesOfType(snapshot, (p) => p.type === 'page' && p.breadcrumb.length === 1 && !site.extensionPaths.includes(p.route))],
     ['最新消息', pagesOfType(snapshot, (p) => p.type === 'article')],
     ['活動剪影', pagesOfType(snapshot, (p) => p.type === 'gallery')],
   ];

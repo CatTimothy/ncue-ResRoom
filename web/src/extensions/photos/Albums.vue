@@ -1,12 +1,12 @@
 <script setup>
 import { computed, useTemplateRef } from 'vue';
 import { useRoute } from 'vue-router';
-import { can, fetchAlbums } from '../api.js';
-import AlbumEditor from '../components/AlbumEditor.vue';
-import AlbumSection from '../components/AlbumSection.vue';
-import ListStatus from '../components/ListStatus.vue';
-import SearchBar from '../components/SearchBar.vue';
-import { usePagedList } from '../usePagedList.js';
+import { can, fetchAlbums } from '../../api.js';
+import AlbumEditor from './AlbumEditor.vue';
+import AlbumSection from './AlbumSection.vue';
+import ListStatus from '../../components/ListStatus.vue';
+import SearchBar from '../../components/SearchBar.vue';
+import { usePagedList } from '../../usePagedList.js';
 
 const route = useRoute();
 const search = computed(() => route.query.q || null);

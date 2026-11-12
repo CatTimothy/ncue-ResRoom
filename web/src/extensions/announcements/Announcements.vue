@@ -1,13 +1,13 @@
 <script setup>
 import { computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { fetchAnnouncements } from '../api.js';
-import AnnouncementEditor from '../components/AnnouncementEditor.vue';
-import AnnouncementList from '../components/AnnouncementList.vue';
-import ListStatus from '../components/ListStatus.vue';
-import SearchBar from '../components/SearchBar.vue';
-import { useEditMode } from '../useEditMode.js';
-import { usePagedList } from '../usePagedList.js';
+import { fetchAnnouncements } from '../../api.js';
+import AnnouncementEditor from './AnnouncementEditor.vue';
+import AnnouncementList from './AnnouncementList.vue';
+import ListStatus from '../../components/ListStatus.vue';
+import SearchBar from '../../components/SearchBar.vue';
+import { useEditMode } from '../../useEditMode.js';
+import { usePagedList } from '../../usePagedList.js';
 
 const route = useRoute();
 const router = useRouter();

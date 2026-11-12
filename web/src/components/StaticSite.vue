@@ -7,7 +7,7 @@ const STATIC_SITE_URL = '/static-site';
   <section class="settings-group" aria-labelledby="static-site-title">
     <h2 id="static-site-title" class="settings-group__title">靜態網站</h2>
     <p class="site-data__text">
-      把目前公開的內容（首頁、最新消息、活動剪影、文件下載與所有頁面）輸出成 HTML 檔，打包成 ZIP。
+      把目前公開的內容（首頁、所有頁面，以及啟用中的擴充功能，例如最新消息、活動剪影、文件下載）輸出成 HTML 檔，打包成 ZIP。
       解壓縮後放到任何網頁伺服器，或直接開啟裡面的 index.html 就能瀏覽，不需要這個系統與資料庫。
     </p>
     <div class="site-data__actions">

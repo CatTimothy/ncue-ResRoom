@@ -1,14 +1,14 @@
 <script setup>
 import { defineAsyncComponent, ref } from 'vue';
-import { fetchAnnouncementSource, saveAnnouncement } from '../api.js';
-import { fromLocalInput, toLocalInput } from '../format.js';
-import { useLeaveGuard } from '../useEditMode.js';
-import { useEditor } from '../useEditor.js';
-import EditorForm from './EditorForm.vue';
-import RocDateInput from './RocDateInput.vue';
+import { fetchAnnouncementSource, saveAnnouncement } from '../../api.js';
+import { fromLocalInput, toLocalInput } from '../../format.js';
+import { useLeaveGuard } from '../../useEditMode.js';
+import { useEditor } from '../../useEditor.js';
+import EditorForm from '../../components/EditorForm.vue';
+import RocDateInput from '../../components/RocDateInput.vue';
 
 // 編輯器很大，只有管理員開啟時才下載
-const MarkdownEditor = defineAsyncComponent(() => import('./MarkdownEditor.vue'));
+const RichTextEditor = defineAsyncComponent(() => import('../../components/RichTextEditor.vue'));
 
 const props = defineProps({
   /** 不提供時是新增公告 */
@@ -104,7 +104,7 @@ function submit() {
     </div>
     <div class="field">
       <span>詳細內容</span>
-      <MarkdownEditor v-model="form.content" :disabled="loading" @error="error = $event" />
+      <RichTextEditor v-model="form.content" :disabled="loading" label="詳細內容" @error="error = $event" />
     </div>
   </EditorForm>
 </template>

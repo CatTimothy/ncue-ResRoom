@@ -30,7 +30,7 @@ API 不在 `http://localhost:4000` 時，啟動前請設定 `API_URL`。
 
 網站內建的網站設定與圖片（`web/public` 的標誌、網站圖示、主視覺）是通用的示範內容（DEMO SCHOOL）。第一次使用時，執行 `npm run seed-content` 匯入彰化師範大學資源教室的頁面內容、文件和網站設定（`seed/`，網站設定與圖片在 `seed/site-config.json` 和 `seed/branding/`），並把這些頁面排進頁首選單（選單裡還沒有任何頁面時才會）。`seed/` 和「輸出網站資料」的 ZIP 是同一種格式（見「網站資料的輸出與匯入」）。網站設定只會寫入還是示範預設值的欄位、圖片只在還沒上傳時設定，已經修改過的不會被覆蓋。要給其他學校使用時，修改或移除 `seed/` 即可。可重複執行，不會覆蓋已存在的內容。沒有匯入時，頁首選單只有首頁、最新消息和活動剪影。
 
-上線時先在 `web/` 執行 `npm run build`，再於根目錄執行 `npm start`，網站和 API 都在同一個網址（`PORT`，預設 4000）。放在反向代理後方時，要保留原始 `Host` 標頭。`public/` 每次建置都會被清空重建，不要放自己的檔案。
+上線時先執行 `npm run build`（在根目錄執行即可，會呼叫 `web/` 的建置），再執行 `npm start`，網站和 API 都在同一個網址（`PORT`，預設 4000）。放在反向代理後方時，要保留原始 `Host` 標頭。`public/` 每次建置都會被清空重建，不要放自己的檔案。
 
 相簿名稱寫成 `110(1)校外參訪活動` 時，會拆成學期標記和活動名稱。公告可設定發布時間，時間未到時只有登入後才看得到。相簿則有活動日期，「活動剪影」依活動日期由新到舊排列，並在相簿名稱下方直接顯示照片；沒有照片的相簿不會公開列出。不過已經知道網址的相簿和照片檔案仍可直接開啟。
 
@@ -55,7 +55,7 @@ API 不在 `http://localhost:4000` 時，啟動前請設定 `API_URL`。
 
 按頁首右上角的「登入」會在目前的頁面上開啟登入視窗（舊的 `/login` 網址會回到首頁並開啟視窗），登入後留在原本的頁面。登入後，公告、相簿、照片、文件和頁面都會出現新增、編輯、刪除按鈕。公告和頁面按編輯後，會在原頁面直接切換成編輯模式（網址加上 `?edit=1`，新增時是 `?new=1`）；相簿、照片和文件則用視窗編輯。上傳照片時每張都有自己的說明，預設為檔名；之後在燈箱點說明文字就能直接修改。公告和頁面內文的圖片也一樣（需要該內容的權限），修改時會改寫內文裡的圖片語法；用 HTML 寫的頁面要到編輯畫面改。日期一律以民國輸入，例如 `115/11/04 15:20`。頁面的總覽在「所有頁面」（`/pages`），最上方是頁首選單（需要 `MANAGE_SITE_CONFIG`），下方列出網站功能（首頁、最新消息、活動剪影、文件下載）與所有頁面。有 `MANAGE_PAGES` 權限時，頁首會出現「新增頁面」按鈕。頁面網址的輸入框寫 `test` 會放在 `/pages/test`，開頭加上 `/`（例如 `/test`）會直接放在網站第一層（`pages.root`）；放在第一層時不能用 `announcements`、`photos`、`documents`、`pages`、`settings` 等網站已經用掉的網址（`web/src/navigation.js` 的 `RESERVED_SLUGS`）。編輯頁面時也可以修改網址，頁首選單會跟著改，但其他內容裡連到舊網址的連結不會改。新增的頁面會自動加到主選單的最後，不想放在選單上時，到頁首選單拖到「未加入」。頁面會記錄建立時間（`created_at`）與最後修改時間。有 `MANAGE_SITE_CONFIG` 權限時，頁首會出現「網站設定」（`/settings`，頁尾的「編輯頁尾」也連到這裡），可以修改：網站標題（瀏覽器分頁的標題）、標誌、網站圖示（favicon）、標誌旁的名稱、首頁的標題與主視覺圖片、頁尾的聯絡資訊（標題、電話、分機、開放時間、聯絡老師），以及主題。頁首選單（連結可以是頁面或首頁、最新消息、活動剪影、文件下載，存在 `navigation_links` 資料表）在「所有頁面」編輯。圖片透過 `uploadContentImage` 上傳，按「使用內建圖片」會改回 `web/public` 裡的圖片。Copyright 固定為 CatTimothy（寫在 `web/src/components/SiteFooter.vue`），年份和今日訪問人數由系統產生。帳號用 `npm run create-user -- <username>` 建立。
 
-公告和頁面使用 Markdown 編輯器（md-editor-v3，只在管理員開啟時下載）；頁面也可以在編輯畫面改選 HTML，改用純文字的輸入框（切換格式不會轉換已輸入的內容）。工具列的「新增圖片」、把圖片拖進內容區或貼上，都會自動上傳並插入圖片語法。有 `MANAGE_DOCUMENTS` 權限時，工具列還有「新增文件」，也可以把文件拖進內容區（拖曳時游標會標示插入的位置）：文件會透過 `uploadDocument` 上傳並插入下載連結，同時列在「文件下載」頁；在該頁刪除文件後，內容裡的連結會失效。沒有任何公告、頁面或網站設定引用（`schema.sql` 的 `image_references`）、且超過 1 天的圖片，會在下次上傳內文圖片時清除。
+公告和頁面使用像文書處理器的文字編輯器（Tiptap，`web/src/components/RichTextEditor.vue`，只在管理員開啟時下載）：直接看到排版後的樣子，工具列有段落樣式（內文、標題）、粗體、斜體、刪除線、連結、項目符號、編號、引言、分隔線、圖片、文件與表格。存檔仍是 Markdown，格式定義在 `web/src/richText.js`；只提供 Markdown 寫得出來、網站也會顯示的格式，所以沒有底線、文字顏色與對齊。頁面也可以在編輯畫面改選 HTML，改用純文字的輸入框（切換格式不會轉換已輸入的內容）。工具列的「圖片」、把圖片拖進內容區或貼上，都會自動上傳並插入圖片。有 `MANAGE_DOCUMENTS` 權限且文件下載功能啟用時，工具列還有「文件」，也可以把文件拖進內容區（拖曳時游標會標示插入的位置）：文件會透過 `uploadDocument` 上傳並插入下載連結，同時列在「文件下載」頁；在該頁刪除文件後，內容裡的連結會失效。沒有任何公告、頁面或網站設定引用（`schema.sql` 的 `image_references`）、且超過 1 天的圖片，會在下次上傳內文圖片時清除。
 
 ### 網站資料的輸出與匯入
 
@@ -67,6 +67,7 @@ ZIP 裡的資料夾結構和專案的 `seed/` 一樣（程式在 `src/site-files
 site-config.json            網站設定，欄位名稱同 GraphQL；"images": { "logoUrl": "logo.webp" } 指向 branding/ 裡的圖片
 navigation.json             頁首選單 { "utility": [{ "service": "HOME" }, { "page": "map" }], "main": [...] }
 visits.json                 每日訪問人數
+extensions.json             擴充功能的啟用狀態 { "PHOTOS": false }；沒有列出的視為啟用
 pages/<slug>.md 或 .html     頁面；開頭的 front matter 寫 title、path（/about 在第一層，沒寫或 /pages/about 在 /pages 底下）、createdAt
 announcements/<名稱>.md      公告；front matter 寫 title、publishedAt、unit、deadline、contactPerson、extension 等
 albums/<資料夾>/             一本相簿；album.json 寫 name、eventDate 和每張照片的說明（沒寫的用檔名）
@@ -240,20 +241,34 @@ src/
 ├─ app.js             # 組合各元件並分派 HTTP 請求
 ├─ db/                # schema.sql、連線與 prepare、約束錯誤訊息
 ├─ graphql/
-│  ├─ index.js        # 合併各功能的 schema、Yoga 設定
+│  ├─ index.js        # 合併核心與擴充功能的 schema、Yoga 設定
 │  ├─ auth.js         # 登入與使用者
 │  ├─ pages.js
-│  ├─ announcements.js
-│  ├─ photos.js
-│  └─ documents.js
+│  ├─ navigation.js   # 頁首選單
+│  └─ extensions.js   # 擴充功能的清單與啟用、停用
+├─ extensions/        # 擴充功能的伺服器部分（見 docs/extensions.md）
 ├─ http/              # 檔案下載、網站資料的輸出與匯入、靜態網站下載、請求前置檢查
 ├─ site-files/        # 網站資料的資料夾格式（和 seed/ 相同）：讀取、輸出、匯入
 ├─ static-site/       # 靜態網站的樣板與前端程式
 ├─ lib/               # 登入狀態、密碼、權限檢查、錯誤、內容消毒、檔案儲存
-└─ scripts/           # create-user
+└─ scripts/           # create-user、seed-content、extensions（擴充功能的產生與清單）
 ```
 
-`src/graphql/` 的每個檔案都包含該功能的 GraphQL schema 和 resolver。新增功能後，要在 `src/graphql/index.js` 註冊。
+`src/graphql/` 的每個檔案都包含該功能的 GraphQL schema 和 resolver。新增核心功能後，要在 `src/graphql/index.js` 註冊；網站功能（有自己的網址的）寫成擴充功能。
+
+## 擴充功能
+
+最新消息、活動剪影、文件下載是隨系統提供的「系統擴充功能」。登入後在帳號選單的「擴充功能」（`/extensions`，需要網站設定的權限）可以停用或啟用：停用後，它的網址顯示找不到頁面，頁首選單的連結、首頁區塊、靜態網站與搜尋引擎資訊裡的頁面都不提供，API 回傳 `EXTENSION_DISABLED` 錯誤；已有的內容與選單位置都保留，重新啟用就恢復。
+
+新增擴充功能：
+
+```sh
+npm run extensions:new -- event-signup --label 活動報名
+```
+
+會在 `web/src/extensions/event-signup/` 與 `src/extensions/event-signup/` 建立 `meta.js`、`index.js` 等可以直接執行的檔案。擴充功能的清單（`web/src/extensions/meta.js`、`web/src/extensions/index.js`、`src/extensions/index.js`）由 `npm run extensions:sync` 依資料夾自動產生，`npm run dev`、`npm test`、`npm run build` 前會自動執行，不要手動修改。
+
+檔案結構、每個欄位、GraphQL 與靜態頁面的寫法見 [擴充功能開發說明](docs/extensions.md)。
 
 ## 授權
 

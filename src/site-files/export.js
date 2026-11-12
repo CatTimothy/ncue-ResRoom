@@ -114,6 +114,10 @@ export async function exportSiteFiles({ db, storage }) {
   }
   entries.push({ name: 'navigation.json', data: json(navigation) });
   entries.push({ name: 'visits.json', data: json(tables.daily_visits) });
+  // 擴充功能的啟用狀態 { 代號: true | false }；沒有列出的視為啟用
+  if (tables.extensions.length) {
+    entries.push({ name: 'extensions.json', data: json(Object.fromEntries(tables.extensions.map((row) => [row.key, row.enabled]))) });
+  }
 
   return entries;
 }

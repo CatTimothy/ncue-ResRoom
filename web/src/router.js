@@ -1,13 +1,11 @@
 import { nextTick } from 'vue';
 import { createRouter, createWebHistory } from 'vue-router';
+import { extensionRoutes } from './extensions/index.js';
 import { canAnimate } from './motion.js';
-import { BUILT_IN_PAGES, SERVICES } from './navigation.js';
+import { BUILT_IN_PAGES } from './navigation.js';
 import { focusMain, setTitle } from './page.js';
-import Album from './views/Album.vue';
-import Albums from './views/Albums.vue';
-import Announcement from './views/Announcement.vue';
-import Announcements from './views/Announcements.vue';
-import Documents from './views/Documents.vue';
+import { isExtensionEnabled } from './siteConfig.js';
+import Extensions from './views/Extensions.vue';
 import Home from './views/Home.vue';
 import NotFound from './views/NotFound.vue';
 import Pages from './views/Pages.vue';
@@ -21,11 +19,8 @@ export const router = createRouter({
   history: createWebHistory(),
   routes: [
     { path: '/', component: Home },
-    { path: SERVICES.ANNOUNCEMENTS.to, component: Announcements, meta: { title: SERVICES.ANNOUNCEMENTS.label } },
-    { path: `${SERVICES.ANNOUNCEMENTS.to}/:id`, component: Announcement, props: true, meta: { title: SERVICES.ANNOUNCEMENTS.label } },
-    { path: SERVICES.PHOTOS.to, component: Albums, meta: { title: SERVICES.PHOTOS.label } },
-    { path: `${SERVICES.PHOTOS.to}/:id`, component: Album, props: true, meta: { title: SERVICES.PHOTOS.label } },
-    { path: SERVICES.DOCUMENTS.to, component: Documents, meta: { title: SERVICES.DOCUMENTS.label } },
+    // 擴充功能的網址（web/src/extensions）；停用時由 App.vue 顯示找不到頁面
+    ...extensionRoutes(),
     { path: '/pages', component: Pages, meta: { title: '所有頁面' } },
     // 頁面的網址：/pages/<slug>，或設定在第一層的 /<slug>（見 navigation.js 的 pagePath）
     {
@@ -35,6 +30,7 @@ export const router = createRouter({
       meta: { title: '' },
     },
     { path: '/settings', component: SiteSettings, meta: { title: '網站設定' } },
+    { path: '/extensions', component: Extensions, meta: { title: '擴充功能' } },
     // 登入是頁首開啟的視窗；舊的 /login 連結回到原本的頁面並開啟視窗
     { path: '/login', redirect: (to) => ({ path: safeRedirect(to.query.redirect), query: { login: '1' } }) },
     // 放在第一層的頁面，例如 /about、/test；上面的網站功能優先
@@ -74,9 +70,12 @@ router.beforeResolve((to, from) => {
   });
 });
 
+/** 這個網址屬於停用的擴充功能 */
+export const isDisabledRoute = (route) => Boolean(route.meta.extension) && !isExtensionEnabled(route.meta.extension);
+
 // 換頁時更新標題，並把焦點移到內容開頭，讓鍵盤與螢幕報讀軟體使用者知道頁面已更換
 router.afterEach((to, from) => {
-  if (to.path !== from.path) setTitle(to.meta.title);
+  if (to.path !== from.path) setTitle(isDisabledRoute(to) ? '找不到頁面' : to.meta.title);
   nextTick(() => {
     finishTransition?.();
     finishTransition = null;

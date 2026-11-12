@@ -12,9 +12,6 @@ BEGIN
   IF to_regtype('nav_menu') IS NULL THEN
     CREATE TYPE nav_menu AS ENUM ('UTILITY', 'MAIN');
   END IF;
-  IF to_regtype('nav_service') IS NULL THEN
-    CREATE TYPE nav_service AS ENUM ('HOME', 'ANNOUNCEMENTS', 'PHOTOS', 'DOCUMENTS');
-  END IF;
 END $$;
 
 -- 主題顏色只能有這幾個鍵，值是 #rrggbb；沒有的鍵使用 web/src/style.css 的預設值
@@ -347,7 +344,7 @@ BEGIN
     menu      nav_menu NOT NULL,
     position  INTEGER NOT NULL,
     page_slug TEXT UNIQUE REFERENCES pages (slug) ON DELETE CASCADE ON UPDATE CASCADE,
-    service   nav_service UNIQUE,
+    service   TEXT UNIQUE,
     PRIMARY KEY (menu, position),
     CONSTRAINT navigation_links_target_check CHECK ((page_slug IS NULL) <> (service IS NULL))
   );
@@ -364,7 +361,7 @@ BEGIN
       jsonb_array_elements_text(navigation -> m.key) WITH ORDINALITY AS i (path, n),
       LATERAL (SELECT
         (CASE i.path WHEN '/' THEN 'HOME' WHEN '/announcements' THEN 'ANNOUNCEMENTS'
-          WHEN '/photos' THEN 'PHOTOS' WHEN '/documents' THEN 'DOCUMENTS' END)::nav_service AS service,
+          WHEN '/photos' THEN 'PHOTOS' WHEN '/documents' THEN 'DOCUMENTS' END) AS service,
         regexp_replace(i.path, '^/(pages/)?', '') AS slug
       ) AS x
     WHERE x.service IS NOT NULL OR x.slug IN (SELECT slug FROM pages);
@@ -376,6 +373,36 @@ BEGIN
 END $$;
 
 ALTER TABLE site_config DROP COLUMN IF EXISTS navigation;
+
+-- 網站功能改成擴充功能後，可以連到的功能由程式決定（src/graphql/navigation.js 的 NavService），不再是固定的列舉
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT FROM information_schema.columns
+    WHERE table_schema = current_schema() AND table_name = 'navigation_links' AND column_name = 'service' AND udt_name = 'nav_service'
+  ) THEN
+    ALTER TABLE navigation_links ALTER COLUMN service TYPE TEXT USING service::text;
+  END IF;
+END $$;
+DROP TYPE IF EXISTS nav_service;
+
+-- 擴充功能的啟用狀態（src/extensions）。沒有記錄的擴充功能視為啟用；停用時資料保留
+CREATE TABLE IF NOT EXISTS extensions (
+  key     TEXT PRIMARY KEY,
+  enabled BOOLEAN NOT NULL,
+  CONSTRAINT extensions_key_check CHECK (key ~ '^[A-Z][A-Z0-9_]*$' AND char_length(key) <= 50)
+);
+
+-- 啟用時，頁首選單沒有這項功能就加到主選單的最後
+CREATE OR REPLACE FUNCTION set_extension_enabled(ext TEXT, on_off BOOLEAN) RETURNS VOID LANGUAGE plpgsql AS $$
+BEGIN
+  INSERT INTO extensions (key, enabled) VALUES (ext, on_off)
+    ON CONFLICT (key) DO UPDATE SET enabled = EXCLUDED.enabled;
+  IF on_off AND NOT EXISTS (SELECT FROM navigation_links WHERE service = ext) THEN
+    INSERT INTO navigation_links (menu, position, service)
+    SELECT 'MAIN', COALESCE(max(position) + 1, 0), ext FROM navigation_links WHERE menu = 'MAIN';
+  END IF;
+END $$;
 
 -- 修改頁面網址（slug）時，選單裡的連結跟著改
 DO $$
@@ -446,7 +473,7 @@ $$;
 -- 網站資料的輸出與匯入（src/http/site-data.js）包含的資料表，依匯入的順序（被參照的在前）。
 -- 帳號與登入狀態不包含在內。新增資料表時加在這裡
 CREATE OR REPLACE FUNCTION site_data_tables() RETURNS TEXT[] LANGUAGE sql IMMUTABLE AS $$
-  SELECT ARRAY['pages', 'announcements', 'albums', 'photos', 'documents', 'site_config', 'navigation_links', 'daily_visits']
+  SELECT ARRAY['pages', 'announcements', 'albums', 'photos', 'documents', 'site_config', 'navigation_links', 'daily_visits', 'extensions']
 $$;
 
 -- 所有網站資料，{"資料表": [資料列, ...]}，欄位名稱是 snake_case。

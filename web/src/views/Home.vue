@@ -1,13 +1,10 @@
 <script setup>
-import { fetchAlbums, fetchAnnouncements } from '../api.js';
-import AlbumList from '../components/AlbumList.vue';
-import AnnouncementList from '../components/AnnouncementList.vue';
-import ListStatus from '../components/ListStatus.vue';
-import { siteConfig, siteImage } from '../siteConfig.js';
-import { usePagedList } from '../usePagedList.js';
+import { computed } from 'vue';
+import { EXTENSIONS } from '../extensions/index.js';
+import { isExtensionEnabled, siteConfig, siteImage } from '../siteConfig.js';
 
-const announcements = usePagedList(() => 'home:announcements', fetchAnnouncements, 5);
-const albums = usePagedList(() => 'home:albums', fetchAlbums, 6);
+// 啟用中的擴充功能提供的區塊，例如最新消息、活動剪影
+const sections = computed(() => EXTENSIONS.filter((extension) => extension.home && isExtensionEnabled(extension.key)));
 const campus = siteImage('campusUrl');
 
 // 警示磚的點陣；動畫從左下角、也就是引導線的起點擴散開來
@@ -37,23 +34,7 @@ const dots = Array.from({ length: COLUMNS * ROWS }, (_, i) => {
     </div>
   </section>
 
-  <div class="page">
-    <section aria-labelledby="home-news">
-      <div class="section-head stop">
-        <h2 id="home-news">最新消息</h2>
-        <RouterLink v-if="announcements.items.value.length" to="/announcements">查看所有消息</RouterLink>
-      </div>
-      <AnnouncementList :items="announcements.items.value" />
-      <ListStatus :list="announcements" :show-more="false" empty-text="目前沒有新消息。" what="最新消息" />
-    </section>
-
-    <section aria-labelledby="home-photos">
-      <div class="section-head stop">
-        <h2 id="home-photos">活動剪影</h2>
-        <RouterLink v-if="albums.items.value.length" to="/photos">查看所有相簿</RouterLink>
-      </div>
-      <AlbumList :items="albums.items.value" />
-      <ListStatus :list="albums" :show-more="false" empty-text="目前沒有相簿。" what="相簿" />
-    </section>
+  <div v-if="sections.length" class="page">
+    <component :is="extension.home" v-for="extension in sections" :key="extension.key" />
   </div>
 </template>

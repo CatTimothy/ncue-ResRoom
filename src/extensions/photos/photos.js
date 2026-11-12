@@ -1,6 +1,6 @@
-import { fail } from '../lib/errors.js';
-import { withPermission } from '../lib/guards.js';
-import { paging } from '../lib/search.js';
+import { fail } from '../../lib/errors.js';
+import { withPermission } from '../../lib/guards.js';
+import { paging } from '../../lib/search.js';
 
 export const photosTypeDefs = /* GraphQL */ `
   type Photo {
