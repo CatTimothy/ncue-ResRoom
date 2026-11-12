@@ -1883,6 +1883,24 @@ a.button {
   font-size: 0.9375rem;
 }
 
+.site-footer__github {
+  display: inline-flex;
+  gap: 0.375rem;
+  align-items: center;
+  text-decoration: none;
+}
+
+.site-footer__github:hover {
+  text-decoration: underline;
+}
+
+.site-footer__github .icon {
+  width: 1.125rem;
+  height: 1.125rem;
+  fill: currentcolor;
+  stroke: none;
+}
+
 
 /* 動態全部放在這裡，要求減少動態的使用者不會看到 */
 @media (prefers-reduced-motion: no-preference) {

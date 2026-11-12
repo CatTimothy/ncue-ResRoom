@@ -1,4 +1,4 @@
-# NCUE 資源教室 GraphQL API
+# 開源簡易官網管理系統
 
 提供 pages、announcements、photos、documents 四種內容。需要 Node.js 24 以上與 PostgreSQL 13 以上。
 
@@ -254,3 +254,7 @@ src/
 ```
 
 `src/graphql/` 的每個檔案都包含該功能的 GraphQL schema 和 resolver。新增功能後，要在 `src/graphql/index.js` 註冊。
+
+## 授權
+
+[MIT](LICENSE)

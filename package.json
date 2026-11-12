@@ -1,6 +1,8 @@
 {
-  "name": "ncue-resroom-api",
+  "name": "simple-site-cms-api",
   "version": "0.1.0",
+  "description": "開源簡易官網管理系統",
+  "license": "MIT",
   "private": true,
   "type": "module",
   "engines": {
