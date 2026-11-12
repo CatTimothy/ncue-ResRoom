@@ -12,7 +12,7 @@ import { zipSource } from '../site-files/sources.js';
 import { authorize } from './authorize.js';
 import { isAllowedOrigin } from './request-guard.js';
 
-/** GET 下載網站資料（ZIP，資料夾結構見 README），POST 上傳同樣格式的 ZIP 取代所有網站資料 */
+/** GET 下載網站資料（ZIP，資料夾結構和 seed/ 一樣），POST 上傳同樣格式的 ZIP 取代所有網站資料 */
 export const SITE_DATA_PATH = '/site-data';
 
 export function reply(res, status, body, headers = {}) {

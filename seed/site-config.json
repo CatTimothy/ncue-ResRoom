@@ -1,0 +1,29 @@
+{
+  "siteTitle": "示範學校資源教室",
+  "logoText": "資源教室",
+  "campusAlt": "示範學校的校園插圖：草坪後方的校舍與藍天白雲",
+  "heroPrefix": "示範學校",
+  "heroTitle": "資源教室",
+  "heroText": "歡迎來到資源教室，週一至週五 8:30～17:00 開放",
+  "footerTitle": "聯絡資源教室",
+  "phone": "(02)1234-5678",
+  "extension": "轉 1234、1235",
+  "hours": "週一至週五 8:30～17:00",
+  "teachers": [
+    {
+      "name": "王老師",
+      "email": "teacher@example.edu",
+      "extension": "1234"
+    },
+    {
+      "name": "林老師",
+      "email": "teacher2@example.edu",
+      "extension": "1235"
+    }
+  ],
+  "images": {
+    "faviconUrl": "favicon.png",
+    "logoUrl": "logo.webp",
+    "campusUrl": "campus.jpg"
+  }
+}

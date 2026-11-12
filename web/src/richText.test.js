@@ -1,14 +1,23 @@
 import assert from 'node:assert/strict';
+import { readdirSync, readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { renderAnnouncement, renderPage } from '../../src/lib/content.js';
 import { roundTrip } from './richText.js';
 
+const seed = new URL('../../seed/', import.meta.url);
+const body = (text) => text.replace(/^---[\s\S]*?\n---[ \t]*\r?\n/, '');
 /** 比較顯示結果時忽略標籤之間的空白 */
 const shown = (html) => html.replace(/>\s+</g, '><').trim();
 const samePage = (source) => assert.equal(
   shown(renderPage({ format: 'MARKDOWN', source: roundTrip(source) })),
   shown(renderPage({ format: 'MARKDOWN', source })),
 );
+
+test('文字編輯器開啟再存檔，seed 的頁面顯示起來不變', () => {
+  for (const name of readdirSync(new URL('pages/', seed)).filter((file) => file.endsWith('.md'))) {
+    samePage(body(readFileSync(new URL(`pages/${name}`, seed), 'utf8')));
+  }
+});
 
 test('文字編輯器支援的格式存成 Markdown 後顯示不變', () => {
   samePage([

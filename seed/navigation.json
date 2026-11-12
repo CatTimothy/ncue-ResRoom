@@ -1,0 +1,33 @@
+{
+  "utility": [
+    {
+      "service": "HOME"
+    },
+    {
+      "page": "map"
+    },
+    {
+      "service": "DOCUMENTS"
+    }
+  ],
+  "main": [
+    {
+      "page": "about"
+    },
+    {
+      "page": "services"
+    },
+    {
+      "service": "ANNOUNCEMENTS"
+    },
+    {
+      "page": "members"
+    },
+    {
+      "page": "regulations"
+    },
+    {
+      "service": "PHOTOS"
+    }
+  ]
+}

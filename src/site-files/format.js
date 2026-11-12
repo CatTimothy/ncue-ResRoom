@@ -1,4 +1,4 @@
-// 網站資料檔案的共用格式。資料夾結構見 README 的「網站資料的輸出與匯入」
+// 網站資料檔案的共用格式。資料夾結構見 README 的「網站資料的輸出與匯入」，seed/ 也是同樣的格式
 
 /** 內文引用圖片與文件的寫法：{{image:<images/ 底下的路徑>}}、{{document:<documents/ 底下的路徑>}} */
 export const PLACEHOLDER = /\{\{(image|document):([^}]+)\}\}/g;

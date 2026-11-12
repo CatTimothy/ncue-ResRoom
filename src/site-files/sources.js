@@ -1,5 +1,6 @@
-// 網站資料的來源：上傳的 ZIP 檔。提供 { paths, read(path) }，路徑以 / 分隔，相對於網站資料的最外層
-import { open, stat } from 'node:fs/promises';
+// 網站資料的來源：資料夾（seed/）或上傳的 ZIP 檔。都提供 { paths, read(path) }，路徑以 / 分隔，相對於網站資料的最外層
+import { open, readdir, readFile, stat } from 'node:fs/promises';
+import { join, relative, sep } from 'node:path';
 import { inflateRawSync } from 'node:zlib';
 import { readZipIndex, siteFilePaths } from '../../web/src/zipIndex.js';
 import { fail } from '../lib/errors.js';
@@ -10,6 +11,15 @@ function checked(names) {
   } catch (error) {
     return fail(error.message);
   }
+}
+
+export async function directorySource(dir) {
+  const names = (await readdir(dir, { recursive: true, withFileTypes: true }))
+    .filter((entry) => entry.isFile())
+    .map((entry) => relative(dir, join(entry.parentPath, entry.name)).split(sep).join('/'))
+    .sort();
+  const paths = checked(names);
+  return { paths: [...paths.keys()], read: (path) => readFile(join(dir, ...paths.get(path).split('/'))) };
 }
 
 /** ZIP 檔；用完要呼叫 close() */

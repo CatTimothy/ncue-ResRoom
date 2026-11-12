@@ -16,6 +16,7 @@
     "pretest": "npm run extensions:sync",
     "test": "node --env-file-if-exists=.env --test",
     "create-user": "node --env-file-if-exists=.env src/scripts/create-user.js",
+    "seed-content": "node --env-file-if-exists=.env src/scripts/seed-content.js",
     "extensions:new": "node src/scripts/extensions.js new",
     "extensions:sync": "node src/scripts/extensions.js sync"
   },

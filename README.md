@@ -28,7 +28,7 @@ npm run build                      # 輸出到根目錄的 public/，API 會直�
 
 API 不在 `http://localhost:4000` 時，啟動前請設定 `API_URL`。
 
-網站內建的網站設定與圖片（`web/public` 的標誌、網站圖示、主視覺）是通用的示範內容（DEMO SCHOOL）。登入後到「網站設定」修改，或在「網站資料」匯入另一個網站輸出的 ZIP（見「網站資料的輸出與匯入」）。新的網站沒有任何頁面，頁首選單只有首頁、最新消息和活動剪影。
+網站內建的網站設定與圖片（`web/public` 的標誌、網站圖示、主視覺）是通用的示範內容（DEMO SCHOOL）。第一次使用時，執行 `npm run seed-content` 匯入示範內容（`seed/`）：五個頁面、兩則公告、一本相簿、兩份文件和網站設定（網站設定與圖片在 `seed/site-config.json` 和 `seed/branding/`），並把這些頁面排進頁首選單（選單裡還沒有任何頁面時才會）。內容都是虛構的示範學校，圖片是插圖。`seed/` 和「輸出網站資料」的 ZIP 是同一種格式（見「網站資料的輸出與匯入」）。網站設定只會寫入還是示範預設值的欄位、圖片只在還沒上傳時設定，已經修改過的不會被覆蓋。自己的學校使用時，把 `seed/` 改成自己的內容再執行，或不執行、直接在網站上新增。可重複執行，不會覆蓋已存在的內容。沒有匯入時，頁首選單只有首頁、最新消息和活動剪影。
 
 上線時先執行 `npm run build`（在根目錄執行即可，會呼叫 `web/` 的建置），再執行 `npm start`，網站和 API 都在同一個網址（`PORT`，預設 4000）。放在反向代理後方時，要保留原始 `Host` 標頭。`public/` 每次建置都會被清空重建，不要放自己的檔案。
 
@@ -61,7 +61,7 @@ API 不在 `http://localhost:4000` 時，啟動前請設定 `API_URL`。
 
 網站設定頁最下方的「網站資料」可以把整個網站輸出成一個 ZIP 檔，或匯入這樣的檔案，用來備份、直接修改後再匯入，或搬到另一個網站。需要帳號管理以外的所有權限（`src/lib/permissions.js` 的 `SITE_DATA_PERMISSIONS`），因為輸出包含未發布的內容，匯入會取代所有內容。也可以直接呼叫：`GET /site-data` 下載，`POST /site-data`（請求內容就是 ZIP 檔本身）匯入，都要帶登入的 cookie。
 
-ZIP 裡的資料夾結構如下（程式在 `src/site-files/`）；整包放在一個資料夾裡壓縮也可以，匯入時會去掉最外層：
+ZIP 裡的資料夾結構和專案的 `seed/` 一樣（程式在 `src/site-files/`），所以把 `seed/` 壓縮成 ZIP 也能直接匯入；整包放在一個資料夾裡壓縮也可以，匯入時會去掉最外層：
 
 ```text
 site-config.json            網站設定，欄位名稱同 GraphQL；"images": { "logoUrl": "logo.webp" } 指向 branding/ 裡的圖片
@@ -89,6 +89,7 @@ title: 資源教室簡介
 - 帳號、密碼與登入狀態不包含在內。
 - 匯入時先把圖片與文件寫進上傳資料夾，再用 `schema.sql` 的 `import_site()` 一次取代資料庫裡的資料；任何一步失敗，網站都維持原狀。成功後，原本的照片與文件檔案會被刪除。公告與相簿寫了 `id` 時沿用，網址不會改變。
 - 瀏覽器會先讀出 ZIP 的檔案清單，顯示各類內容的數量，請管理員確認後才上傳（`web/src/siteData.js`、`web/src/zipIndex.js`）。上傳的 ZIP 會先存成暫存檔，所以要有足夠的磁碟空間；反向代理也要放寬請求大小與逾時限制。
+- `npm run seed-content` 讀的也是這個格式，但只會補上沒有的內容，不會取代。
 - 新增資料表或欄位時，輸出在 `src/site-files/export.js`、匯入在 `src/site-files/import.js`、讀取在 `src/site-files/read.js`；資料表也要加在 `schema.sql` 的 `site_data_tables()`。
 
 ### 靜態網站
@@ -247,10 +248,10 @@ src/
 │  └─ extensions.js   # 擴充功能的清單與啟用、停用
 ├─ extensions/        # 擴充功能的伺服器部分（見 docs/extensions.md）
 ├─ http/              # 檔案下載、網站資料的輸出與匯入、靜態網站下載、請求前置檢查
-├─ site-files/        # 網站資料的資料夾格式：讀取、輸出、匯入
+├─ site-files/        # 網站資料的資料夾格式（和 seed/ 相同）：讀取、輸出、匯入
 ├─ static-site/       # 靜態網站的樣板與前端程式
 ├─ lib/               # 登入狀態、密碼、權限檢查、錯誤、內容消毒、檔案儲存
-└─ scripts/           # create-user、extensions（擴充功能的產生與清單）
+└─ scripts/           # create-user、seed-content、extensions（擴充功能的產生與清單）
 ```
 
 `src/graphql/` 的每個檔案都包含該功能的 GraphQL schema 和 resolver。新增核心功能後，要在 `src/graphql/index.js` 註冊；網站功能（有自己的網址的）寫成擴充功能。

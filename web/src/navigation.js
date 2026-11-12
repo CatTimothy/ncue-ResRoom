@@ -16,7 +16,7 @@ export const SERVICES = {
   ...Object.fromEntries(EXTENSION_METAS.map(({ key, path, label }) => [key, { to: path, label }])),
 };
 
-/** 選單還沒載入時用的排列，和資料庫建立時的內容一樣（test/api.test.js 會比對） */
+/** 選單還沒載入時用的排列，和資料庫建立時的內容一樣（test/api.test.js 會比對）；頁面由 seed-content 加入 */
 export const DEFAULT_NAVIGATION = {
   utility: [{ service: 'HOME', page: null }],
   main: [{ service: 'ANNOUNCEMENTS', page: null }, { service: 'PHOTOS', page: null }],

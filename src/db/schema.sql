@@ -295,7 +295,7 @@ BEGIN
   END IF;
 END $$;
 
--- 全站共用的設定，只有一列。預設值是示範用的內容（DEMO SCHOOL），實際的學校資料由網站設定或匯入網站資料填入；
+-- 全站共用的設定，只有一列。預設值是示範用的內容（DEMO SCHOOL），實際的學校資料由網站設定或 npm run seed-content（seed/site-config.json）填入；
 -- 圖片是 NULL 時使用 web/public 的內建示範圖片
 CREATE TABLE IF NOT EXISTS site_config (
   id            BOOLEAN PRIMARY KEY DEFAULT true CHECK (id),
@@ -366,7 +366,7 @@ BEGIN
       ) AS x
     WHERE x.service IS NOT NULL OR x.slug IN (SELECT slug FROM pages);
   ELSE
-    -- 新的網站只有網站功能，沒有頁面，和 web/src/navigation.js 的 DEFAULT_NAVIGATION 一致
+    -- 新的網站只有網站功能；頁面由 npm run seed-content 加入，和 web/src/navigation.js 的 DEFAULT_NAVIGATION 一致
     INSERT INTO navigation_links (menu, position, service) VALUES
       ('UTILITY', 0, 'HOME'), ('MAIN', 0, 'ANNOUNCEMENTS'), ('MAIN', 1, 'PHOTOS');
   END IF;
