@@ -40,12 +40,26 @@ export const localizeHtml = (text, u) => raw(text.replace(/\b(href|src)="(\/[^"]
 /** 一頁的定義：網址、標題與內容；ZIP 用 layout 包成整份文件，<noscript> 用 noscriptBody */
 export const page = (route, title, body, { lightbox = false } = {}) => ({ route, title, body, lightbox });
 
-/** HTML 轉成純文字（描述、給 AI 的全文用） */
-export function textOf(markup) {
+/** 連結寫成 Markdown 的 [文字](網址)；文字就是網址時只留網址，頁內的 # 連結只留文字 */
+function linkText(href, inner) {
+  if (href.startsWith('#')) return inner;
+  const label = inner.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+  const url = href.replace(/[()\s]/g, (c) => encodeURIComponent(c).replace('(', '%28').replace(')', '%29'));
+  if (!url) return inner;
+  if (label === href && !href.startsWith('/')) return url;
+  return `[${label || url}](${url})`;
+}
+
+/**
+ * HTML 轉成純文字（描述、給 AI 的全文用）。
+ * links 為 true 時保留連結的網址（給 AI 的全文用）；站內連結是 / 開頭的路徑，由 src/http/seo.js 補上網站的網址
+ */
+export function textOf(markup, { links = false } = {}) {
   return markup
     .replace(/<(script|style)[\s\S]*?<\/\1>/gi, ' ')
     // 圖片換成它的說明，只有圖片的頁面（例如位置圖）也有描述
     .replace(/<img[^>]*\balt="([^"]*)"[^>]*>/gi, '\n$1\n')
+    .replace(/<a\b[^>]*\bhref="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi, (_, href, inner) => (links ? linkText(href, inner) : inner))
     // 區塊元素換行；行內元素（strong、a 等）直接拿掉，中文的字才不會被空白隔開
     .replace(/<br\s*\/?>|<\/(p|h[1-6]|li|div|tr|td|th|dt|dd|blockquote|pre|figcaption)>/gi, '\n')
     .replace(/<[^>]+>/g, '')

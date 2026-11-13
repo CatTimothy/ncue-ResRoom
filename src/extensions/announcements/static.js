@@ -72,7 +72,7 @@ function announcementMeta(item) {
     published: item.publishedAt,
     modified: item.modifiedAt,
     breadcrumb: [HOME_CRUMB, { name: '最新消息', route: '/announcements' }],
-    text: [info, textOf(markup)].filter(Boolean).join('\n'),
+    text: [info, textOf(markup, { links: true })].filter(Boolean).join('\n'),
   };
 }
 

@@ -2096,6 +2096,7 @@ test('search engines and AI tools get page metadata, structured data, a sitemap,
     const client = siteClient(site, headers);
     await client.gql(SAVE_PAGE, { slug: 'seo-page', title: '服務說明', content: '# 標題\n\n提供**課業輔導**與生活協助，歡迎同學申請。', format: 'MARKDOWN', root: true });
     const announcement = (await client.gql(SAVE_ANNOUNCEMENT, { title: '期末聚餐', content: '時間是 12 月 20 日中午，地點在資源教室。' })).data.saveAnnouncement;
+    await client.gql(SAVE_PAGE, { slug: 'seo-links', title: '相關連結', content: '詳見[服務說明](/seo-page)與[教育部](https://www.edu.tw/)，或 <https://example.com/a>', format: 'MARKDOWN', root: true });
     const album = (await client.gql(SAVE_ALBUM, { name: '110(1)參訪', eventDate: '2021-10-01' })).data.saveAlbum;
     const photo = (await client.upload(UPLOAD_PHOTO, { alt: '合照', albumId: album.id }, PNG, 'a.png')).data.uploadPhoto;
     const document = (await client.upload(UPLOAD_DOCUMENT, { title: '申請表', category: '115學年度第一學期' }, 'x', 'a.pdf')).data.uploadDocument;
@@ -2150,6 +2151,9 @@ test('search engines and AI tools get page metadata, structured data, a sitemap,
     const full = await text('/llms-full.txt');
     assert.ok(full.includes('## 服務說明') && full.includes('提供課業輔導與生活協助，歡迎同學申請。'));
     assert.ok(full.includes('時間是 12 月 20 日中午，地點在資源教室。'));
+    // 內文的連結保留網址，站內連結補上網站的網址；描述不含網址
+    assert.ok(full.includes(`詳見[服務說明](${ORIGIN}/seo-page)與[教育部](https://www.edu.tw/)，或 https://example.com/a`));
+    assert.ok(llms.includes('詳見服務說明與教育部，或 https://example.com/a'));
   } finally {
     await site.stop();
     rmSync(publicDir, { recursive: true, force: true });

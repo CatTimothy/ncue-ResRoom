@@ -189,7 +189,8 @@ function llmsFullTxt(snapshot, origin) {
       `網址：${origin}${page.route}`,
       page.type === 'article' ? `發布日期：${dateOf(page.published)}` : `最後更新：${dateOf(page.modified)}`,
       '',
-      page.text,
+      // 內文裡的站內連結（/ 開頭）補上網站的網址
+      page.text.replace(/\]\((\/[^)\s]*)\)/g, (_, path) => `](${origin}${path})`),
       '',
     ]),
   ].join('\n');

@@ -230,7 +230,7 @@ function contentMeta(item) {
     published: item.createdAt,
     modified: item.updatedAt,
     breadcrumb: [HOME_CRUMB],
-    text: textOf(markup),
+    text: textOf(markup, { links: true }),
   };
 }
 
